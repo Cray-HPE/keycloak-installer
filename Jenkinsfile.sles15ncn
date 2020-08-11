@@ -1,0 +1,8 @@
+@Library('dst-shared@release/shasta-1.3') _
+rpmBuild(
+    specfile: "keycloak-crayctldeploy.spec",
+    channel: "casmpet-builds",
+    product: "shasta-standard,shasta-premium",
+    target_node: "ncn",
+    fanout_params: ["sle15", "sle15sp1"]
+)

@@ -1,0 +1,100 @@
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: keycloak-setup
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: secret-creator
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, patch]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keycloak-setup
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-setup
+    namespace: services
+roleRef:
+  kind: ClusterRole
+  name: secret-creator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: keycloak-setup-{{ .Release.Revision }}
+  labels:
+    {{- include "cray-keycloak.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      serviceAccountName: keycloak-setup
+      restartPolicy: OnFailure
+      containers:
+      - name: keycloak-setup
+        image: {{ .Values.setup.image.repository }}:{{ .Values.setup.image.tag | default (include "cray-keycloak.app-version" . ) }}
+        imagePullPolicy: {{ .Values.setup.image.pullPolicy }}
+        env:
+        - name: KEYCLOAK_BASE
+          value: "http://{{ .Values.setup.keycloak.service }}:8080/keycloak"
+        - name: OAUTHLIB_INSECURE_TRANSPORT  # Tell oauthlib to allow http. istio protects the channel
+          value: "1"
+        - name: CLUSTER_KEYCLOAK_BASE
+          value: "https://{{ .Values.setup.keycloak.clusterGw.dnsName }}{{ .Values.setup.keycloak.clusterGw.route }}"
+        - name: KEYCLOAK_GATEKEEPER_PROXIED_HOSTS
+          value: |
+            {{ .Values.setup.keycloak.gatekeeper.proxiedHosts | toJson }}
+        - name: KEYCLOAK_CUSTOMER_ACCESS_URL
+          value: "{{ .Values.setup.keycloak.customerAccessUrl }}"
+          # Admin Client
+        - name: KEYCLOAK_ADMIN_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.adminClient.id }}"
+        - name: KEYCLOAK_ADMIN_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.adminClient.secret.name }}"
+        - name: KEYCLOAK_ADMIN_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.adminClient.secret.namespaces | toJson }}
+        # System: compute client, used for things like compute
+        # node boot and operation, should be deprecated when SPIRE tooling
+        # gets implemented/the cray-token service is deprecated.
+        - name: KEYCLOAK_SYSTEM_COMPUTE_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.systemComputeClient.id }}"
+        - name: KEYCLOAK_SYSTEM_COMPUTE_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.systemComputeClient.secret.name }}"
+        - name: KEYCLOAK_SYSTEM_COMPUTE_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.systemComputeClient.secret.namespaces | toJson }}
+        # System pxe client, used to obtain a service account token
+        # for use in ipxe image chaining
+        - name: KEYCLOAK_SYSTEM_PXE_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.systemPXEClient.id }}"
+        - name: KEYCLOAK_SYSTEM_PXE_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.systemPXEClient.secret.name }}"
+        - name: KEYCLOAK_SYSTEM_PXE_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.systemPXEClient.secret.namespaces | toJson }}
+        # Gatekeeper client
+        - name: KEYCLOAK_GATEKEEPER_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.gatekeeper.client.id }}"
+        - name: KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.gatekeeper.client.secret.name }}"
+        - name: KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.gatekeeper.client.secret.namespaces | toJson }}
+        volumeMounts:
+        - name: keycloak-master-admin-auth-vol
+          mountPath: /mnt/keycloak-master-admin-auth-vol
+      volumes:
+      - name: keycloak-master-admin-auth-vol
+        secret:
+          secretName: {{ .Values.setup.keycloak.masterAdminSecretName }}

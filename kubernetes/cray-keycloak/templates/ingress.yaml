@@ -1,0 +1,25 @@
+
+# This is copied from the cray-service chart
+
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: "keycloak"
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - services-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/keycloak"
+      rewrite:
+        uri: "/keycloak"
+      route:
+        - destination:
+            host: "cray-keycloak-http"
+            port:
+              number: 80

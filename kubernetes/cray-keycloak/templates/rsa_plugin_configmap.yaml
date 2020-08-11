@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cray-keycloak-rsa-plugin
+binaryData:
+  RSA-CLI-Provider.jar: |-
+    {{ .Files.Get "files/RSA-CLI-Provider.jar" | b64enc }}
+  RSA-Plugin-Provider.jar: |-
+    {{ .Files.Get "files/RSA-Plugin-Provider.jar" | b64enc }}
+  RSAAuthenticator.ftl: |-
+    {{ .Files.Get "files/RSAAuthenticator.ftl" | b64enc }}

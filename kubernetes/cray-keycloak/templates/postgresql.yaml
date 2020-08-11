@@ -1,0 +1,141 @@
+
+# This file is copied from the cray-service chart
+
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: "keycloak-postgres"
+  labels:
+    app.kubernetes.io/name: keycloak-postgres
+spec:
+  teamId: "keycloak"
+  volume:
+    size: 1Gi
+  numberOfInstances: 3
+  users:
+    service_account: []
+  databases:
+    service_db: service_account
+  postgresql:
+    version: "11"
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: "keycloak-postgres-0"
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: "keycloak-postgres-0"
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: "keycloak-postgres-0"
+spec:
+  targets:
+  - name: "keycloak-postgres-0"
+    ports:
+    - number: 5432
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: "keycloak-postgres-1"
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: "keycloak-postgres-1"
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: "keycloak-postgres-1"
+spec:
+  targets:
+  - name: "keycloak-postgres-1"
+    ports:
+    - number: 5432
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: "keycloak-postgres-2"
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: "keycloak-postgres-2"
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: "keycloak-postgres-2"
+spec:
+  targets:
+  - name: "keycloak-postgres-2"
+    ports:
+    - number: 5432
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "keycloak-wait-for-postgres-{{ .Release.Revision }}"
+  labels:
+    app.kubernetes.io/name: keycloak-wait-for-postgres
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: "postgres-watcher-service-db"
+          image: "{{ .Values.imagesHost }}/cache/postgres:10.3"
+          command: ["sh", "-c", "until psql postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB -c 'select version();'; do echo waiting for postgres db $POSTGRES_DB; sleep 2; done;  echo 'POSTGRES_READY';"]
+          env:
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: service-account.keycloak-postgres.credentials
+                key: username
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: service-account.keycloak-postgres.credentials
+                key: password
+          - name: POSTGRES_HOST
+            value: "keycloak-postgres"
+          - name: POSTGRES_PORT
+            value: "5432"
+          - name: POSTGRES_DB
+            value: "service_db"
+          resources:
+            requests:
+              cpu: 100m
+              memory: "3Mi"
+            limits:
+              cpu: 500m
+              memory: "50Mi"

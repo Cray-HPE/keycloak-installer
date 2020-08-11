@@ -1,0 +1,8 @@
+--index-url http://dst.us.cray.com/dstpiprepo/simple
+--trusted-host dst.us.cray.com
+-c constraints.txt
+
+boto3
+kubernetes
+requests
+requests-oauthlib

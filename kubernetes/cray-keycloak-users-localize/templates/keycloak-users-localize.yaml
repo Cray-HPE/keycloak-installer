@@ -1,0 +1,385 @@
+{{- /*
+Copyright 2020 Hewlett Packard Enterprise Development LP
+*/ -}}
+
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: keycloak-users-localize
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: configmap-creator
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, create, patch]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keycloak-users-localize
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-users-localize
+    namespace: services
+roleRef:
+  kind: ClusterRole
+  name: configmap-creator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: keycloak-users-localize-{{ .Release.Revision }}
+  labels:
+    {{- include "cray-keycloak-users-localize.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      serviceAccountName: keycloak-users-localize
+      restartPolicy: OnFailure
+      containers:
+      - name: keycloak-localize
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default (include "cray-keycloak-users-localize.app-version" . ) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: KEYCLOAK_BASE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: keycloak_base
+        - name: OAUTHLIB_INSECURE_TRANSPORT  # Tell oauthlib to allow http. istio protects the channel
+          value: "1"
+        - name: LDAP_CONNECTION_URL
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_connection_url
+        - name: LDAP_PROVIDER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_provider_id
+        - name: LDAP_FEDERATION_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_federation_name
+        - name: LDAP_PRIORITY
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_priority
+        - name: LDAP_EDIT_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_edit_mode
+        - name: LDAP_SYNC_REGISTRATIONS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_sync_registrations
+        - name: LDAP_LDAP_VENDOR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_ldap_vendor
+        - name: LDAP_USERNAME_LDAP_ATTRIBUTE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_username_ldap_attribute
+        - name: LDAP_RDN_LDAP_ATTRIBUTE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_rdn_ldap_attribute
+        - name: LDAP_UUID_LDAP_ATTRIBUTE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_uuid_ldap_attribute
+        - name: LDAP_USER_OBJECT_CLASSES
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_user_object_classes
+        - name: LDAP_AUTH_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_auth_type
+        - name: LDAP_BIND_DN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_bind_dn
+              optional: true
+        - name: LDAP_BIND_CREDENTIALS
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_bind_credentials
+              optional: true
+        - name: LDAP_SEARCH_BASE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_search_base
+              optional: true
+        - name: LDAP_SEARCH_SCOPE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_search_scope
+        - name: LDAP_USE_TRUSTSTORE_SPI
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_use_truststore_spi
+        - name: LDAP_CONNECTION_POOLING
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_connection_pooling
+        - name: LDAP_PAGINATION
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_pagination
+        - name: LDAP_ALLOW_KERBEROS_AUTHENTICATION
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_allow_kerberos_authentication
+        - name: LDAP_BATCH_SIZE_FOR_SYNC
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_batch_size_for_sync
+        - name: LDAP_FULL_SYNC_PERIOD
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_full_sync_period
+        - name: LDAP_CHANGED_SYNC_PERIOD
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_changed_sync_period
+        - name: LDAP_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_debug
+        - name: LDAP_USER_ATTRIBUTE_MAPPERS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_user_attribute_mappers
+        - name: LDAP_USER_ATTRIBUTE_MAPPERS_TO_REMOVE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_user_attribute_mappers_to_remove
+              optional: true
+        - name: LDAP_GROUP_NAME_LDAP_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_name_ldap_attr
+        - name: LDAP_GROUP_OBJECT_CLASS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_object_class
+        - name: LDAP_PRESERVE_GROUP_INHERITANCE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_preserve_group_inheritance
+        - name: LDAP_GROUP_MEMBERSHIP_ATTRIBUTE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_membership_attribute
+        - name: LDAP_GROUP_MEMBERSHIP_ATTR_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_membership_attr_type
+        - name: LDAP_GROUP_MEMBERSHIP_LDAP_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_membership_ldap_attr
+        - name: LDAP_GROUP_FILTER
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_group_filter
+        - name: LDAP_USER_ROLES_RETRIEVE_STRATEGY
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_user_roles_retrieve_strategy
+        - name: LDAP_MAPPED_GROUP_ATTRS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_mapped_group_attrs
+        - name: LDAP_GROUPS_DROP_DURING_SYNC
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_groups_drop_during_sync
+        - name: LDAP_ROLE_MAPPER_DN
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_dn
+        - name: LDAP_ROLE_MAPPER_NAME_LDAP_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_name_ldap_attr
+        - name: LDAP_ROLE_MAPPER_OBJECT_CLASS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_object_class
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_LDAP_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_membership_ldap_attr
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_ATTR_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_membership_attr_type
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_USER_LDAP_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_membership_user_ldap_attr
+        - name: LDAP_ROLE_MAPPER_ROLE_LDAP_FILTER
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_role_ldap_filter
+        - name: LDAP_ROLE_MAPPER_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_mode
+        - name: LDAP_ROLE_MAPPER_RETRIEVE_STRATEGY
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_retrieve_strategy
+        - name: LDAP_ROLE_MAPPER_MEMBEROF_ATTR
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_memberof_attr
+        - name: LDAP_ROLE_MAPPER_USE_REALM_ROLES_MAPPING
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_use_realm_roles_mapping
+        - name: LDAP_ROLE_MAPPER_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_role_mapper_client_id
+        - name: LDAP_DO_FULL_SYNC
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: ldap_do_full_sync
+        - name: USER_EXPORT_STORAGE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_storage_url
+        - name: USER_EXPORT_STORAGE_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_storage_bucket
+        - name: USER_EXPORT_STORAGE_PASSWD_OBJECT
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_storage_passwd_object
+        - name: USER_EXPORT_NAME_SOURCE
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_name_source
+              optional: true
+        - name: USER_EXPORT_GROUPS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_groups
+        - name: USER_EXPORT_STORAGE_GROUPS_OBJECT
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_storage_groups_object
+        - name: USER_EXPORT_NAMESPACES
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_namespaces
+        - name: USER_EXPORT_PASSWD_CONFIGMAP
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_passwd_configmap
+        - name: USER_EXPORT_GROUPS_CONFIGMAP
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: user_export_groups_configmap
+        - name: LOCAL_ROLE_ASSIGNMENTS
+          valueFrom:
+            configMapKeyRef:
+              name: keycloak-users-localize
+              key: local_role_assignments
+        volumeMounts:
+        - name: keycloak-master-admin-auth-vol
+          mountPath: /mnt/keycloak-master-admin-auth-vol
+        - name: local-users-vol
+          mountPath: /mnt/local-users
+        - name: local-groups-vol
+          mountPath: /mnt/local-groups
+        - name: ceph-access-vol
+          mountPath: /mnt/ceph-access-vol
+        command:
+        - python
+        - keycloak_setup/keycloak_localize.py
+      volumes:
+      - name: keycloak-master-admin-auth-vol
+        secret:
+          secretName: {{ .Values.keycloakMasterAdminSecretName }}
+      - name: local-users-vol
+        secret:
+          secretName: {{ .Values.localUsersSecretName }}
+          optional: true
+      - name: local-groups-vol
+        configMap:
+          name: {{ .Values.localGroupsConfigMapName }}
+          optional: true
+      - name: ceph-access-vol
+        secret:
+          secretName: {{ .Values.userStorageSecretName }}

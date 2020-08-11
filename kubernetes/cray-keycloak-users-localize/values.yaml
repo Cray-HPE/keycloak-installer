@@ -1,0 +1,10 @@
+
+image:
+  repository: dtr.dev.cray.com/cray/cray-keycloak-setup
+  # tag: latest
+  pullPolicy: Always
+
+keycloakMasterAdminSecretName: keycloak-master-admin-auth
+localUsersSecretName: keycloak-config-local-users
+localGroupsConfigMapName: keycloak-config-local-groups
+userStorageSecretName: wlm-s3-credentials

@@ -1,0 +1,10 @@
+-c constraints.txt
+
+fixtures
+mock
+pytest
+pytest-cov
+responses
+testtools
+
+flake8
