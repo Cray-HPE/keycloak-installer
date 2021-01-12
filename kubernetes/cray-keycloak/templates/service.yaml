@@ -1,0 +1,18 @@
+
+# This is for backwards compatibility and is deprecated.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: services
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: cray-keycloak
+    app.kubernetes.io/name: keycloak
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http

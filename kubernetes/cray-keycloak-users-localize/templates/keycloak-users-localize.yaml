@@ -1,0 +1,216 @@
+{{- /*
+Copyright 2020 Hewlett Packard Enterprise Development LP
+*/ -}}
+
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: keycloak-users-localize
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: configmap-creator
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, create, patch]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keycloak-users-localize
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-users-localize
+    namespace: services
+roleRef:
+  kind: ClusterRole
+  name: configmap-creator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: keycloak-users-localize-{{ .Release.Revision }}
+  labels:
+    {{- include "cray-keycloak-users-localize.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      serviceAccountName: keycloak-users-localize
+      restartPolicy: OnFailure
+      containers:
+      - name: keycloak-localize
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default (include "cray-keycloak-users-localize.app-version" . ) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: KEYCLOAK_BASE
+          value: {{ .Values.keycloakBase }}
+        - name: OAUTHLIB_INSECURE_TRANSPORT  # Tell oauthlib to allow http. istio protects the channel
+          value: "1"
+        - name: LDAP_CONNECTION_URL
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_connection_url
+        - name: LDAP_PROVIDER_ID
+          value: {{ .Values.ldapProviderId | quote }}
+        - name: LDAP_FEDERATION_NAME
+          value: {{ .Values.ldapFederationName | quote }}
+        - name: LDAP_PRIORITY
+          value: {{ .Values.ldapPriority | quote }}
+        - name: LDAP_EDIT_MODE
+          value: {{ .Values.ldapEditMode | quote }}
+        - name: LDAP_SYNC_REGISTRATIONS
+          value: {{ .Values.ldapSyncRegistrations | quote }}
+        - name: LDAP_LDAP_VENDOR
+          value: {{ .Values.ldapVendor | quote }}
+        - name: LDAP_USERNAME_LDAP_ATTRIBUTE
+          value: {{ .Values.ldapUsernameLDAPAttribute | quote }}
+        - name: LDAP_RDN_LDAP_ATTRIBUTE
+          value: {{ .Values.ldapRdnLDAPAttribute | quote }}
+        - name: LDAP_UUID_LDAP_ATTRIBUTE
+          value: {{ .Values.ldapUuidLDAPAttribute | quote }}
+        - name: LDAP_USER_OBJECT_CLASSES
+          value: {{ .Values.ldapUserObjectClasses | quote }}
+        - name: LDAP_AUTH_TYPE
+          value: {{ .Values.ldapAuthType | quote }}
+        - name: LDAP_BIND_DN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_bind_dn
+              optional: true
+        - name: LDAP_BIND_CREDENTIALS
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-users-localize
+              key: ldap_bind_credentials
+              optional: true
+        - name: LDAP_SEARCH_BASE
+          value: {{ .Values.ldapSearchBase | quote }}
+        - name: LDAP_SEARCH_SCOPE
+          value: {{ .Values.ldapSearchScope | quote }}
+        - name: LDAP_USE_TRUSTSTORE_SPI
+          value: {{ .Values.ldapUseTruststoreSpi | quote }}
+        - name: LDAP_CONNECTION_POOLING
+          value: {{ .Values.ldapConnectionPooling | quote }}
+        - name: LDAP_PAGINATION
+          value: {{ .Values.ldapPagination | quote }}
+        - name: LDAP_ALLOW_KERBEROS_AUTHENTICATION
+          value: {{ .Values.ldapAllowKerberosAuthentication | quote }}
+        - name: LDAP_BATCH_SIZE_FOR_SYNC
+          value: {{ .Values.ldapBatchSizeForSync | quote }}
+        - name: LDAP_FULL_SYNC_PERIOD
+          value: {{ .Values.ldapFullSyncPeriod | quote }}
+        - name: LDAP_CHANGED_SYNC_PERIOD
+          value: {{ .Values.ldapChangedSyncPeriod | quote }}
+        - name: LDAP_DEBUG
+          value: {{ .Values.ldapDebug | quote }}
+        - name: LDAP_USER_ATTRIBUTE_MAPPERS
+          value: {{ .Values.ldapUserAttributeMappers | toJson | quote }}
+        - name: LDAP_USER_ATTRIBUTE_MAPPERS_TO_REMOVE
+          value: {{ .Values.ldapUserAttributeMappersToRemove | toJson | quote }}
+        - name: LDAP_GROUP_NAME_LDAP_ATTR
+          value: {{ .Values.ldapGroupNameLDAPAttribute | quote }}
+        - name: LDAP_GROUP_OBJECT_CLASS
+          value: {{ .Values.ldapGroupObjectClass | quote }}
+        - name: LDAP_PRESERVE_GROUP_INHERITANCE
+          value: {{ .Values.ldapPreserveGroupInheritance | quote }}
+        - name: LDAP_GROUP_MEMBERSHIP_ATTRIBUTE
+          value: {{ .Values.ldapMembershipLDAPAttribute | quote }}
+        - name: LDAP_GROUP_MEMBERSHIP_ATTR_TYPE
+          value: {{ .Values.ldapMembershipAttributeType | quote }}
+        - name: LDAP_GROUP_MEMBERSHIP_LDAP_ATTR
+          value: {{ .Values.ldapMembershipUserLDAPAttribute | quote }}
+        - name: LDAP_GROUP_FILTER
+          value: {{ .Values.ldapGroupsLDAPFilter | quote }}
+        - name: LDAP_USER_ROLES_RETRIEVE_STRATEGY
+          value: {{ .Values.ldapUserRolesRetrieveStrategy | quote }}
+        - name: LDAP_MAPPED_GROUP_ATTRS
+          value: {{ .Values.ldapMappedGroupAttributes | quote }}
+        - name: LDAP_GROUPS_DROP_DURING_SYNC
+          value: {{ .Values.ldapDropNonExistingGroupsDuringSync | quote }}
+        - name: LDAP_ROLE_MAPPER_DN
+          value: {{ .Values.ldapRoleMapperDn | quote }}
+        - name: LDAP_ROLE_MAPPER_NAME_LDAP_ATTR
+          value: {{ .Values.ldapRoleMapperRoleNameLDAPAttribute | quote }}
+        - name: LDAP_ROLE_MAPPER_OBJECT_CLASS
+          value: {{ .Values.ldapRoleMapperRoleObjectClasses | quote }}
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_LDAP_ATTR
+          value: {{ .Values.ldapRoleMapperLDAPAttribute | quote }}
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_ATTR_TYPE
+          value: {{ .Values.ldapRoleMapperMemberAttributeType | quote }}
+        - name: LDAP_ROLE_MAPPER_MEMBERSHIP_USER_LDAP_ATTR
+          value: {{ .Values.ldapRoleMapperUserLDAPAttribute | quote }}
+        - name: LDAP_ROLE_MAPPER_ROLE_LDAP_FILTER
+          value: {{ .Values.ldapRoleMapperRolesLDAPFilter | quote }}
+        - name: LDAP_ROLE_MAPPER_MODE
+          value: {{ .Values.ldapRoleMapperMode | quote }}
+        - name: LDAP_ROLE_MAPPER_RETRIEVE_STRATEGY
+          value: {{ .Values.ldapRoleMapperStrategy | quote }}
+        - name: LDAP_ROLE_MAPPER_MEMBEROF_ATTR
+          value: {{ .Values.ldapRoleMapperMemberOfLDAPAttribute | quote }}
+        - name: LDAP_ROLE_MAPPER_USE_REALM_ROLES_MAPPING
+          value: {{ .Values.ldapRoleMapperUseRealmRolesMapping | quote }}
+        - name: LDAP_ROLE_MAPPER_CLIENT_ID
+          value: {{ .Values.ldapRoleMapperClientId | quote }}
+        - name: LDAP_DO_FULL_SYNC
+          value: {{ .Values.ldapDoFullSync | quote }}
+        - name: USER_EXPORT_STORAGE_URL
+          value: {{ .Values.userExportStorageUrl | quote }}
+        - name: USER_EXPORT_STORAGE_BUCKET
+          value: {{ .Values.userExportStorageBucket | quote }}
+        - name: USER_EXPORT_STORAGE_PASSWD_OBJECT
+          value: {{ .Values.userExportStoragePasswdObject | quote }}
+        - name: USER_EXPORT_NAME_SOURCE
+          value: {{ .Values.userExportNameSource | quote }}
+        - name: USER_EXPORT_GROUPS
+          value: {{ .Values.userExportGroups | quote }}
+        - name: USER_EXPORT_STORAGE_GROUPS_OBJECT
+          value: {{ .Values.userExportStorageGroupsObject | quote }}
+        - name: USER_EXPORT_NAMESPACES
+          value: {{ .Values.userExportNamespaces | toJson | quote }}
+        - name: USER_EXPORT_PASSWD_CONFIGMAP
+          value: {{ .Values.userExportUsersConfigmap | quote }}
+        - name: USER_EXPORT_GROUPS_CONFIGMAP
+          value: {{ .Values.userExportGroupsConfigmap | quote }}
+        - name: LOCAL_ROLE_ASSIGNMENTS
+          value: {{ .Values.localRoleAssignments | toJson | quote }}
+        volumeMounts:
+        - name: keycloak-master-admin-auth-vol
+          mountPath: /mnt/keycloak-master-admin-auth-vol
+        - name: keycloak-setup-vol
+          mountPath: /mnt/keycloak-setup-vol
+        - name: local-users-vol
+          mountPath: /mnt/local-users
+        - name: local-groups-vol
+          mountPath: /mnt/local-groups
+        - name: ceph-access-vol
+          mountPath: /mnt/ceph-access-vol
+        command:
+        - python
+        - keycloak_setup/keycloak_localize.py
+      volumes:
+      - name: keycloak-master-admin-auth-vol
+        secret:
+          secretName: {{ .Values.keycloakMasterAdminSecretName }}
+      - name: keycloak-setup-vol
+        secret:
+          secretName: {{ .Values.keycloakSetupSecretName }}
+      - name: local-users-vol
+        secret:
+          secretName: {{ .Values.localUsersSecretName }}
+          optional: true
+      - name: local-groups-vol
+        configMap:
+          name: {{ .Values.localGroupsConfigMapName }}
+          optional: true
+      - name: ceph-access-vol
+        secret:
+          secretName: {{ .Values.userStorageSecretName }}

@@ -1,0 +1,6 @@
+apiVersion: v1
+description: Customizes Keycloak deployment
+keywords:
+- keycloak
+name: cray-keycloak-users-localize
+version: 1.6.3

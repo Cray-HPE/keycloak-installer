@@ -1,0 +1,8 @@
+@Library("dst-shared") _
+rpmBuild(
+    specfile: "keycloak-crayctldeploy.spec",
+    channel: "casmpet-builds",
+    product: "csm",
+    target_node: "ncn",
+    fanout_params: ["sle15", "sle15sp1"]
+)

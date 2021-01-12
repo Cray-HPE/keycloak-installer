@@ -1,0 +1,8 @@
+--index-url https://arti.dev.cray.com:443/artifactory/api/pypi/pypi-remote/simple
+--trusted-host arti.dev.cray.com
+-c constraints.txt
+
+boto3
+kubernetes
+requests
+requests-oauthlib
