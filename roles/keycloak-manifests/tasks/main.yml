@@ -1,0 +1,21 @@
+# Copyright 2019, Cray Inc. All Rights Reserved.
+---
+
+- name: Install keycloak-gatekeeper.yaml
+  block:
+
+    - name: Ensure manifests directory exists
+      file:
+        path: "{{ loftsman_manifest_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy keycloak-gatekeeper.yaml files to bis node
+      copy:
+        src: "{{ item }}"
+        dest: "{{ loftsman_manifest_dir }}"
+      with_items:
+      - keycloak-gatekeeper.yaml
+
+  delegate_to: "{{ groups['bis'][0] }}"
+  run_once: true

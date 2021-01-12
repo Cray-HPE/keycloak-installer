@@ -1,0 +1,104 @@
+
+image:
+  repository: dtr.dev.cray.com/cray/cray-keycloak-setup
+  # tag: latest
+  pullPolicy: Always
+
+# Contains the creds for connecting to keycloak as the master administrator.
+keycloakMasterAdminSecretName: keycloak-master-admin-auth
+
+# The name of a secret that keycloak-setup creates when it's gotten far enough for the localization tool to run.
+keycloakSetupSecretName: admin-client-auth
+
+# If local users should be created, this secret contains the spec for the local users.
+# If this secret doesn't exist then local users will not be created.
+localUsersSecretName: keycloak-config-local-users
+
+# If local groups should be created, this secret contains the spec for the local groups.
+# If this secret doesn't exist then local groups will not be created.
+localGroupsConfigMapName: keycloak-config-local-groups
+
+# Contains the creds for connecting to the s3-style storage, exported users and groups files will be written here.
+userStorageSecretName: wlm-s3-credentials
+
+keycloakBase: http://cray-keycloak-http/keycloak
+
+# A list of sealedSecrets passed in to be deployed.
+sealedSecrets: []
+
+ldapProviderId: "ldap"
+ldapFederationName: "shasta-user-federation-ldap"
+ldapPriority: "1"
+ldapEditMode: "READ_ONLY"
+ldapSyncRegistrations: "false"
+ldapVendor: "other"
+ldapUsernameLDAPAttribute: "uid"
+ldapRdnLDAPAttribute: "uid"
+ldapUuidLDAPAttribute: "uid"
+ldapUserObjectClasses: "posixAccount"
+ldapAuthType: "none"
+ldapSearchBase: "cn=default"
+ldapSearchScope: "2"
+ldapUseTruststoreSpi: "ldapsOnly"
+ldapConnectionPooling: "true"
+ldapPagination: "true"
+ldapAllowKerberosAuthentication: "false"
+ldapBatchSizeForSync: "4000"
+ldapFullSyncPeriod: "-1"
+ldapChangedSyncPeriod: "-1"
+ldapDebug: "true"
+
+ldapUserAttributeMappers:
+  - "uidNumber"
+  - "gidNumber"
+  - "loginShell"
+  - "homeDirectory"
+
+ldapUserAttributeMappersToRemove: []
+
+ldapGroupNameLDAPAttribute: "cn"
+ldapGroupObjectClass: "posixGroup"
+ldapPreserveGroupInheritance: "false"
+ldapMembershipLDAPAttribute: "memberUid"
+ldapMembershipAttributeType: "UID"
+ldapMembershipUserLDAPAttribute: "uid"
+ldapGroupsLDAPFilter: ""
+ldapUserRolesRetrieveStrategy: "LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"
+ldapMappedGroupAttributes: "cn,gidNumber,memberUid"
+ldapDropNonExistingGroupsDuringSync: "false"
+
+ldapDoFullSync: "true"
+
+ldapRoleMapperDn: ""
+ldapRoleMapperRoleNameLDAPAttribute: "cn"
+ldapRoleMapperRoleObjectClasses: "groupOfNames"
+ldapRoleMapperLDAPAttribute: "member"
+ldapRoleMapperMemberAttributeType: "DN"
+ldapRoleMapperUserLDAPAttribute: "sAMAccountName"
+ldapRoleMapperRolesLDAPFilter: ""
+ldapRoleMapperMode: "READ_ONLY"
+ldapRoleMapperStrategy: "LOAD_ROLES_BY_MEMBER_ATTRIBUTE"
+ldapRoleMapperMemberOfLDAPAttribute: "memberOf"
+ldapRoleMapperUseRealmRolesMapping: "false"
+ldapRoleMapperClientId: "shasta"
+
+userExportUsersConfigmap: keycloak-users
+userExportGroupsConfigmap: keycloak-groups
+keycloak_ceph_secret: wlm-s3-credentials
+userExportStorageUrl: http://rgw-vip.nmn
+userExportStorageBucket: wlm
+userExportStoragePasswdObject: etc/passwd
+userExportStorageGroupsObject: etc/group
+userExportNamespaces:
+  - user
+  - default
+
+userExportNameSource: "username"
+  # The username stored in Keycloak is normalized to lowercase.
+  # If this is set to "homeDirectory" the username in the generated passwd file
+  # is built by pulling the last element from the homeDirectory path. This can
+  # be used to create a passwd file that preserves the case of the username.
+
+userExportGroups: "true"
+
+localRoleAssignments: []
