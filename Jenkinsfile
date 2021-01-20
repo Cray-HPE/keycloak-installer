@@ -8,4 +8,5 @@ dockerBuildPipeline {
  imagePrefix = "cray"
         product = "csm"
  githubPushRepo = "Cray-HPE/keycloak-installer"
+ githubPushBranches = /(release\/.*|master)/
 }
