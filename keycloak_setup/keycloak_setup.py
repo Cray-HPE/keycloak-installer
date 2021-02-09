@@ -753,14 +753,6 @@ def main():
     gatekeeper_pm = [
         # XXX Not sure which protocol mappers are necessary for gatekeeper client
         {
-            'name': 'admin-role',
-            'protocol': 'openid-connect',
-            'protocolMapper': 'oidc-hardcoded-role-mapper',
-            'consentRequired': False,
-            'config': {
-                'role': 'shasta.admin',
-            },
-        }, {
             'name': 'uid-user-attribute-mapper',
             'protocolMapper': 'oidc-usermodel-attribute-mapper',
             'protocol': 'openid-connect',
