@@ -122,7 +122,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: "postgres-watcher-service-db"
-          image: "{{ .Values.imagesHost }}/cache/postgres:10.3"
+          image: "{{ .Values.imagesHost }}/cache/postgres:13.2"
           command: ["sh", "-c", "until psql postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB -c 'select version();'; do echo waiting for postgres db $POSTGRES_DB; sleep 2; done;  echo 'POSTGRES_READY';"]
           env:
           - name: POSTGRES_USER
