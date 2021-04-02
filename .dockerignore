@@ -11,6 +11,8 @@ Jenkinsfile*
 jenkinsfile_linter.py
 output.xml
 README.md
+CONTRIBUTING.md
+CHANGELOG.md
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
