@@ -3,4 +3,4 @@ description: Deploys Keycloak for Shasta
 keywords:
 - keycloak
 name: cray-keycloak
-version: 1.11.0
+version: 1.11.1
