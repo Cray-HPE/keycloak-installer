@@ -6,8 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.11.0]
-- cray-keycloak: The cache/postgres image was updated to pick up fixes for security vulnerabilities
+## [0.12.6]
+- keycloak_setup: Initial release for CSM 1.0
 
 ## [0.10.1]
 - keycloak_setup: Added `wlm-client` in shasta realm
