@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+#!/bin/sh
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 
 set -ex
 set -o pipefail

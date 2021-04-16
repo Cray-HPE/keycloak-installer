@@ -1,12 +1,17 @@
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 
-FROM python:3.9.0-slim as testing_base
+FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.12.6 as testing_base
 
 WORKDIR /usr/src/app
 
+RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+RUN python3 -m ensurepip
+RUN pip3 install --no-cache --upgrade pip setuptools
+
 COPY requirements.txt requirements_test.txt constraints.txt ./
 
-RUN pip install --no-cache-dir -r requirements.txt && \
- pip install --no-cache-dir -r requirements_test.txt
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+ pip3 install --no-cache-dir -r requirements_test.txt
 
 COPY . .
 
@@ -21,13 +26,17 @@ FROM testing_base as codestyle
 CMD [ "./docker_codestyle_entry.sh" ]
 
 
-FROM python:3.9.0-slim
+FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.12.6
 
 WORKDIR /usr/src/app
 
+RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+RUN python3 -m ensurepip
+RUN pip3 install --no-cache --upgrade pip setuptools
+
 COPY requirements.txt constraints.txt ./
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
 
