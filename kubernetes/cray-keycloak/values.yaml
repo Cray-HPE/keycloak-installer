@@ -74,6 +74,7 @@ setup:
 keycloak:
   # Custom value for init container image source
   imagesHost: dtr.dev.cray.com
+  kubectlImageVersion: "0.2.0"
 
   keycloak:
     replicas: 3
@@ -122,7 +123,7 @@ keycloak:
     # This is copied from cray-services
     extraInitContainers: |
       - name: keycloak-wait-for-postgres
-        image: {{ .Values.imagesHost }}/loftsman/docker-kubectl:latest
+        image: {{ .Values.imagesHost }}/loftsman/docker-kubectl:{{ .Values.kubectlImageVersion }}
         command:
         - /bin/sh
         - -c
