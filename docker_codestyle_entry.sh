@@ -11,7 +11,7 @@ fi
 mkdir -p /results
 
 if [[ -z "$QUIET" ]]; then
-  pip freeze 2>&1 | tee /results/pip_freeze.out
+  pip3 freeze 2>&1 | tee /results/pip_freeze.out
 fi
 
 flake8 --ignore E501 2>&1 | tee /results/flake8.out
