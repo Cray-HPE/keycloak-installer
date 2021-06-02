@@ -37,7 +37,7 @@ metadata:
 spec:
   teamId: "keycloak"
   volume:
-    size: 1Gi
+    size: 10Gi
   numberOfInstances: 3
   users:
     service_account: []
