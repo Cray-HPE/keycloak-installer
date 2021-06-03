@@ -9,7 +9,7 @@ if [[ -z "$QUIET" ]]; then
 fi
 mkdir -p /results
 if [[ -z "$QUIET" ]]; then
-  pip freeze 2>&1 | tee /results/pip_freeze.out
+  pip3 freeze 2>&1 | tee /results/pip_freeze.out
 fi
 pytest -v \
  --cov-report html:/results/coverage \
