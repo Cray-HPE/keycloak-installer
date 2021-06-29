@@ -60,12 +60,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
-Create the name of the service account to use
+Create a default fully qualified name for postgresql DB Backup based on fullname.
 */}}
-{{- define "cray-keycloak.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "cray-keycloak.fullname" .) .Values.serviceAccount.name }}
+{{- define "cray-keycloak.postgresqlDbBackupFullname" -}}
+{{- printf "%s-postgresql-db-backup" (include "cray-keycloak.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Create the name of the service account to use for the postgres DB Backup
+*/}}
+{{- define "cray-keycloak.postgresqlDbBackupServiceAccountName" -}}
+{{- if .Values.postgresDbBackup.serviceAccount.create -}}
+    {{ default (include "cray-keycloak.postgresqlDbBackupFullname" .) .Values.postgresDbBackup.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
+    {{ default "default" .Values.postgresDbBackup.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
