@@ -212,7 +212,7 @@ postgresDbBackup:
   storageBucket: postgres-backup
   storageSecret: postgres-backup-s3-credentials
 
-  schedule: "1 1 * * *"  # Once per day at 1:01AM
+  schedule: "10 2 * * *"  # Once per day at 2:10AM
 
   imagePullSecrets: []
   nameOverride: ""
