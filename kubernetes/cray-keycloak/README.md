@@ -1,7 +1,7 @@
 Deploys Keycloak
 
 Uses the community-supported Keycloak helm chart, see
-https://github.com/codecentric/helm-charts/tree/master/charts/keycloak
+https://github.com/codecentric/helm-charts/tree/keycloak-7.2.0/charts/keycloak
 
 Check the requirements.yaml/requirements.lock files for the current version.
 
@@ -21,3 +21,8 @@ An istio virtual service is created for ingress. Keycloak is on `/keycloak`.
 Keycloak is configured to use the Postgres operator set up by
 cray-postgres-operator. The postgres.yaml file is essentially copied from the
 cray-service chart.
+
+When upgrading
+
+* Update the tag in the github link above.
+* check for NOTEs in the values.yaml
