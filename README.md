@@ -209,10 +209,7 @@ default values will be used: `admin-cli`, `admin`, and `adminpwd`.
 ### Running tests
 
 ```
-docker build --tag keycloak-installer-codestyle --target codestyle . &&
-docker run --rm keycloak-installer-codestyle &&
-docker build --tag keycloak-installer-testing --target testing . &&
-docker run -v $PWD/results:/results --rm keycloak-installer-testing
+make test
 ```
 
 The coverage report will be in `results/coverage`.
