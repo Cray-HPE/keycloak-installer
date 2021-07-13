@@ -85,6 +85,10 @@ keycloak:
       traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
     image:
       tag: 9.0.0
+    # NOTE: When upgrading this should be able to be removed. -XX:+UseContainerSupport is the default in chart version 7.3.0
+    extraEnv: |
+      - name: JAVA_OPTS
+        value: -XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true
     basepath: keycloak
     username: admin
     existingSecret: keycloak-master-admin-auth
@@ -171,7 +175,7 @@ keycloak:
         memory: "1500Mi"
         cpu: "1000m"
       limits:
-        memory: "3000Mi"
+        memory: "5000Mi"
         cpu: "4000m"
     cli:
       # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
