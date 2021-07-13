@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 
 RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
 RUN python3 -m ensurepip
-RUN pip3 install --no-cache --upgrade pip setuptools
+RUN pip3 install --no-cache --upgrade pip setuptools==57.1.0
 
 COPY requirements.txt requirements_test.txt constraints.txt ./
 
@@ -32,7 +32,7 @@ WORKDIR /usr/src/app
 
 RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
 RUN python3 -m ensurepip
-RUN pip3 install --no-cache --upgrade pip setuptools
+RUN pip3 install --no-cache --upgrade pip setuptools==57.1.0
 
 COPY requirements.txt constraints.txt ./
 
