@@ -433,6 +433,7 @@ class TestKeycloakSetup(testtools.TestCase):
         self.assertEqual(kc_clients_url, responses.calls[0].request.url)
 
         exp_req_body = {
+            'authorizationServicesEnabled': False,
             'clientId': client.id,
             'standardFlowEnabled': False,
             'implicitFlowEnabled': False,
@@ -588,6 +589,7 @@ class TestKeycloakSetup(testtools.TestCase):
 
         # verify first call to create client
         exp_req_body = {
+            'authorizationServicesEnabled': False,
             'clientId': client.id,
             'standardFlowEnabled': False,
             'implicitFlowEnabled': False,

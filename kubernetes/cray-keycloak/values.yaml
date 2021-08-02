@@ -38,6 +38,14 @@ setup:
           - services
           - default
           - ims
+    systemNexusClient:
+      id: system-nexus-client
+      secret:
+        name: system-nexus-client-auth
+        namespaces:
+          - services
+          - default
+          - nexus
     wlmClient:
       id: wlm-client
       secret:
