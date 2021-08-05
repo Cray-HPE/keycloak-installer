@@ -1,6 +1,6 @@
 # Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 
-FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.12.6 as testing_base
+FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.13.5 as testing_base
 
 WORKDIR /usr/src/app
 
@@ -26,7 +26,7 @@ FROM testing_base as codestyle
 CMD [ "./docker_codestyle_entry.sh" ]
 
 
-FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.12.6
+FROM arti.dev.cray.com/baseos-docker-master-local/alpine:3.13.5
 
 WORKDIR /usr/src/app
 
