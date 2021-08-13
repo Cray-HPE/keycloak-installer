@@ -1,10 +1,28 @@
 #!/usr/bin/env python
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+
+# MIT License
+# (C) Copyright [2019-2021] Hewlett Packard Enterprise Development LP
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
 
 import io
 import json
 import logging
 import os
+import sys
 import time
 
 import boto3
@@ -83,6 +101,14 @@ DEFAULT_USER_EXPORT_GROUPS_CONFIGMAP_NAME = 'keycloak-groups'
 DEFAULT_LOCAL_ROLE_ASSIGNMENTS = {}
 
 LOGGER = logging.getLogger('keycloak_localize')
+
+
+class NotFound(Exception):
+    pass
+
+
+class UnrecoverableError(Exception):
+    pass
 
 
 class KeycloakLocalize(object):
@@ -306,11 +332,16 @@ class KeycloakLocalize(object):
             LOGGER.info("LDAP user federation already exists.")
             return
         self._create_ldap_user_federation()
-        self._remove_ldap_user_attribute_mappers()
-        self._create_ldap_user_attribute_mappers()
-        self._create_ldap_group_mapper()
-        self._create_ldap_role_mapper()
-        self._trigger_full_user_sync()
+        try:
+            self._remove_ldap_user_attribute_mappers()
+            self._create_ldap_user_attribute_mappers()
+            self._create_ldap_group_mapper()
+            self._create_ldap_role_mapper()
+            self._trigger_full_user_sync()
+        except Exception:
+            LOGGER.info("Configuring LDAP failed, trying to clean up...")
+            self._delete_ldap_user_federation()
+            raise
 
     def _create_local_users(self):
         LOGGER.info("Creating local users...")
@@ -389,7 +420,12 @@ class KeycloakLocalize(object):
 
     def _add_member(self, group_id, member_name):
         LOGGER.info("Adding %r to group %r...", member_name, group_id)
-        user_id = self._fetch_user_by_name(member_name)['id']
+        try:
+            user_id = self._fetch_user_by_name(member_name)['id']
+        except NotFound:
+            raise UnrecoverableError(
+                f"Cannot add {member_name!r} to group because a user with that "
+                "name doesn't exist in Keycloak.")
 
         url = (
             '{}/admin/realms/{}/users/{}/groups/{}'.format(
@@ -420,7 +456,12 @@ class KeycloakLocalize(object):
         LOGGER.info(
             "Assigning %s on %s to group %s...", client_role['name'],
             client['id'], group_name)
-        group = self._fetch_group(group_name)
+        try:
+            group = self._fetch_group(group_name)
+        except NotFound:
+            raise UnrecoverableError(
+                f"Cannot assign a role to group {group_name!r} because a group "
+                "with that name doesn't exist in Keycloak.")
 
         url = (
             '{}/admin/realms/{}/groups/{}/role-mappings/clients/{}'.format(
@@ -447,7 +488,12 @@ class KeycloakLocalize(object):
         LOGGER.info(
             "Assigning %s on %s to user %s...", client_role['name'],
             client['id'], user_name)
-        user = self._fetch_user_by_name(user_name)
+        try:
+            user = self._fetch_user_by_name(user_name)
+        except NotFound:
+            raise UnrecoverableError(
+                f"Cannot assign a role to user {user_name!r} because a user "
+                "with that name doesn't exist in Keycloak.")
 
         url = (
             '{}/admin/realms/{}/users/{}/role-mappings/clients/{}'.format(
@@ -507,7 +553,10 @@ class KeycloakLocalize(object):
         # Note that the search parameter just limits the result to groups
         # matching the value as a prefix, so we need to find the exact match
         # here.
-        group = [g for g in groups if g['name'] == group_name][0]
+        group_match = [g for g in groups if g['name'] == group_name]
+        if not group_match:
+            raise NotFound()
+        group = group_match[0]
         LOGGER.info("ID for %s group is %s", group_name, group['id'])
         return group
 
@@ -518,7 +567,10 @@ class KeycloakLocalize(object):
                 self.keycloak_base, self.SHASTA_REALM_NAME, user_name))
         response = self._kc_master_admin_client.get(url)
         response.raise_for_status()
-        user = response.json()[0]
+        user_matches = response.json()
+        if not user_matches:
+            raise NotFound()
+        user = user_matches[0]
         LOGGER.info("ID for %s user is %s", user_name, user['id'])
         return user
 
@@ -557,6 +609,9 @@ class KeycloakLocalize(object):
             provider_type='org.keycloak.storage.UserStorageProvider',
             config=config)
         LOGGER.info("Created LDAP user federation.")
+
+    def _delete_ldap_user_federation(self):
+        self._delete_component(self._ldap_federation_object_id)
 
     def _remove_ldap_user_attribute_mappers(self):
         for mapper_name in self.ldap_user_attribute_mappers_to_remove:
@@ -703,11 +758,19 @@ class KeycloakLocalize(object):
                 self._ldap_federation_object_id))
         response = self._kc_master_admin_client.post(
             url, params={'action': 'triggerFullSync'})
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception:
+            raise UnrecoverableError(
+                "User sync operator failed with "
+                f"status code={response.status_code} {response.reason}, "
+                f"text=\n{response.text}")
         LOGGER.info(
-            "Full user sync operation completed, result=%s", response.content)
+            "Full user sync operation completed, status_code='%s %s' result=%s",
+            response.status_code, response.reason, response.content)
 
     def _fetch_users(self):
+        LOGGER.info("Fetching all users from Keycloak to build the passwd file...")
         url = (
             '{}/admin/realms/{}/users'.format(
                 self.keycloak_base, self.SHASTA_REALM_NAME))
@@ -1132,6 +1195,10 @@ def main():
         try:
             kl.run()
             break
+        except UnrecoverableError as e:
+            LOGGER.error(
+                'keycloak-localize failed with an unrecoverable error: %s', e)
+            sys.exit(1)
         except oauthlib.oauth2.rfc6749.errors.OAuth2Error:
             LOGGER.warning(
                 "keycloak-localize failed due to unexpected OAuth2Error. "

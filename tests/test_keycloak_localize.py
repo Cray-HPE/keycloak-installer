@@ -1,4 +1,21 @@
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+
+# MIT License
+# (C) Copyright [2019-2021] Hewlett Packard Enterprise Development LP
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
 
 import json
 
@@ -153,6 +170,35 @@ class TestKeycloakLocalize(testtools.TestCase):
         clgm_mock.assert_called_once_with()
         clrm_mock.assert_called_once_with()
         sync_mock.assert_called_once_with()
+
+    def test_configure_ldap_user_federation_cleanup_on_error(self):
+        # When configuration hits a problem and an exception is raised there's
+        # an attempt to clean up and the original Exception is re-raised.
+        fc_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize,
+            '_fetch_component_by_name')).mock
+        fc_mock.return_value = None
+
+        cl_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize,
+            '_create_ldap_user_federation')).mock
+
+        ruam_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize,
+            '_remove_ldap_user_attribute_mappers')).mock
+        ruam_mock.side_effect = Exception()
+
+        dl_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize,
+            '_delete_ldap_user_federation')).mock
+
+        kl = keycloak_localize.KeycloakLocalize(
+            ldap_connection_url=str(mock.sentinel.ldap_url)
+        )
+        self.assertRaises(Exception, kl._configure_ldap_user_federation)
+
+        cl_mock.assert_called_once_with()
+        dl_mock.assert_called_once_with()
 
     def test_create_local_users(self):
         cu_mock = self.useFixture(fixtures.MockPatchObject(
@@ -329,7 +375,7 @@ class TestKeycloakLocalize(testtools.TestCase):
         self.assertEqual(0, am_mock.call_count)
 
     @responses.activate
-    def test_add_member(self):
+    def test_add_member_user_exists(self):
         fun_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_localize.KeycloakLocalize, '_fetch_user_by_name')).mock
         fun_mock.return_value = {'id': str(mock.sentinel.user_id), }
@@ -345,6 +391,17 @@ class TestKeycloakLocalize(testtools.TestCase):
             str(mock.sentinel.group_id), str(mock.sentinel.member_name))
 
         self.assertEqual(1, len(responses.calls))
+
+    def test_add_member_no_user(self):
+        # When the user isn't found, _add_member raises UnrecoverableError.
+        fun_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_user_by_name')).mock
+        fun_mock.side_effect = keycloak_localize.NotFound
+
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertRaises(
+            keycloak_localize.UnrecoverableError, kl._add_member,
+            str(mock.sentinel.group_id), str(mock.sentinel.member_name))
 
     def test_create_assignment_group(self):
         fc_mock = self.useFixture(fixtures.MockPatchObject(
@@ -397,7 +454,7 @@ class TestKeycloakLocalize(testtools.TestCase):
             fr_mock.return_value)
 
     @responses.activate
-    def test_create_group_assignment(self):
+    def test_create_group_assignment_group_exists(self):
         group_name = str(mock.sentinel.group_name)
         group_id = str(mock.sentinel.group_id)
         client_id = str(mock.sentinel.client_id)
@@ -440,8 +497,30 @@ class TestKeycloakLocalize(testtools.TestCase):
         self.assertEqual(
             exp_req_body, json.loads(responses.calls[0].request.body))
 
+    def test_create_group_assignment_group_not_found(self):
+        # When the group isn't found, an UnrecoverableError is raised.
+        group_name = str(mock.sentinel.group_name)
+        client_id = str(mock.sentinel.client_id)
+
+        fg_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_group')).mock
+        fg_mock.side_effect = keycloak_localize.NotFound()
+
+        kl = keycloak_localize.KeycloakLocalize()
+        client = {
+            'id': client_id,
+            'name': str(mock.sentinel.client_name),
+        }
+        client_role = {
+            'id': str(mock.sentinel.role_id),
+            'name': str(mock.sentinel.role_name),
+        }
+        self.assertRaises(
+            keycloak_localize.UnrecoverableError, kl._create_group_assignment,
+            group_name, client, client_role)
+
     @responses.activate
-    def test_create_user_assignment(self):
+    def test_create_user_assignment_user_found(self):
         user_name = str(mock.sentinel.user_name)
         user_id = str(mock.sentinel.user_id)
         client_id = str(mock.sentinel.client_id)
@@ -483,6 +562,28 @@ class TestKeycloakLocalize(testtools.TestCase):
         ]
         self.assertEqual(
             exp_req_body, json.loads(responses.calls[0].request.body))
+
+    def test_create_user_assignment_user_not_found(self):
+        # When the user doesn't exist an Unrecoverable error is raised.
+        user_name = str(mock.sentinel.user_name)
+        client_id = str(mock.sentinel.client_id)
+
+        fu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_user_by_name')).mock
+        fu_mock.side_effect = keycloak_localize.NotFound()
+
+        kl = keycloak_localize.KeycloakLocalize()
+        client = {
+            'id': client_id,
+            'name': str(mock.sentinel.client_name),
+        }
+        client_role = {
+            'id': str(mock.sentinel.role_id),
+            'name': str(mock.sentinel.role_name),
+        }
+        self.assertRaises(
+            keycloak_localize.UnrecoverableError, kl._create_user_assignment,
+            user_name, client, client_role)
 
     @responses.activate
     def test_fetch_client_by_client_id(self):
@@ -531,7 +632,7 @@ class TestKeycloakLocalize(testtools.TestCase):
         self.assertEqual(resp_data, client_role)
 
     @responses.activate
-    def test_fetch_group(self):
+    def test_fetch_group_found(self):
         group_name = str(mock.sentinel.group_name)
         url = (
             'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
@@ -552,7 +653,23 @@ class TestKeycloakLocalize(testtools.TestCase):
         self.assertEqual(exp_group, group)
 
     @responses.activate
-    def test_fetch_user_by_name(self):
+    def test_fetch_group_not_found(self):
+        # When a group with the given name doesn't exist NotFound is raised.
+        group_name = str(mock.sentinel.group_name)
+        url = (
+            'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
+            'groups?search={}'.format(group_name))
+        resp_data = []
+        responses.add(responses.GET, url, json=resp_data)
+
+        kl = keycloak_localize.KeycloakLocalize()
+        kl._kc_master_admin_client_cache = requests.Session()
+
+        self.assertRaises(
+            keycloak_localize.NotFound, kl._fetch_group, group_name)
+
+    @responses.activate
+    def test_fetch_user_by_name_found(self):
         user_name = str(mock.sentinel.user_name)
         url = (
             'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
@@ -570,6 +687,22 @@ class TestKeycloakLocalize(testtools.TestCase):
 
         user = kl._fetch_user_by_name(user_name)
         self.assertEqual(resp_user, user)
+
+    @responses.activate
+    def test_fetch_user_by_name_not_found(self):
+        # When there's no user with the name NotFound is raised.
+        user_name = str(mock.sentinel.user_name)
+        url = (
+            'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
+            'users?username={}'.format(user_name))
+        resp_data = []
+        responses.add(responses.GET, url, json=resp_data)
+
+        kl = keycloak_localize.KeycloakLocalize()
+        kl._kc_master_admin_client_cache = requests.Session()
+
+        self.assertRaises(
+            keycloak_localize.NotFound, kl._fetch_user_by_name, user_name)
 
     def test_create_ldap_user_federation_no_bind_dn(self):
         cc_mock = self.useFixture(fixtures.MockPatchObject(
@@ -654,6 +787,17 @@ class TestKeycloakLocalize(testtools.TestCase):
             config=exp_config,
         )
         self.assertIs(kl._ldap_federation_object_id, cc_mock.return_value)
+
+    def test_delete_ldap_user_federation(self):
+        dc_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize,
+            '_delete_component')).mock
+
+        kl = keycloak_localize.KeycloakLocalize()
+        kl._ldap_federation_object_id = mock.sentinel.lfoi
+        kl._delete_ldap_user_federation()
+
+        dc_mock.assert_called_once_with(mock.sentinel.lfoi)
 
     def test_remove_ldap_user_attribute_mappers(self):
         rm_mock = self.useFixture(fixtures.MockPatchObject(
@@ -1022,6 +1166,26 @@ class TestKeycloakLocalize(testtools.TestCase):
         kl = keycloak_localize.KeycloakLocalize(ldap_do_full_sync=False)
         kl._kc_master_admin_client_cache = requests.Session()
         kl._trigger_full_user_sync()  # Any request will fail
+
+    @responses.activate
+    def test_trigger_full_user_sync_error(self):
+        # When Keycloak returns a 500 error during the sync an
+        # UnrecoverableError is raised.
+        example_federation_id = str(mock.sentinel.federation_id)
+        url = (
+            'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
+            'user-storage/{}/sync?action=triggerFullSync'.format(
+                example_federation_id))
+
+        responses.add(
+            responses.POST, url, status=500,
+            json=[{'error': 'unknown_error'}])  # This is the response when the bindDN is incorrect...
+
+        kl = keycloak_localize.KeycloakLocalize(ldap_do_full_sync=True)
+        kl._kc_master_admin_client_cache = requests.Session()
+        kl._ldap_federation_object_id = example_federation_id
+        self.assertRaises(
+            keycloak_localize.UnrecoverableError, kl._trigger_full_user_sync)
 
     @responses.activate
     def test_fetch_users_name_source_default(self):
