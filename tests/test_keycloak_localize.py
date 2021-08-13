@@ -1187,150 +1187,83 @@ class TestKeycloakLocalize(testtools.TestCase):
         self.assertRaises(
             keycloak_localize.UnrecoverableError, kl._trigger_full_user_sync)
 
-    @responses.activate
-    def test_fetch_users_name_source_default(self):
-        # When user_export_name_source is the default, the username in the
-        # passwd file comes from the username field.
+    def test_fetch_users_once(self):
+        fup_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_users_page')).mock
+        fup_mock.return_value = [mock.sentinel.user, ]
+
+        fmt_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_format_user_passwd_entry')).mock
+        fmt_mock.return_value = str(mock.sentinel.user_fmt)
+
         s3c_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_localize.KeycloakLocalize, '_s3_client',
             new_callable=mock.PropertyMock)).mock
         cpc_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_localize.KeycloakLocalize, '_create_passwd_configmaps')).mock
 
-        url = (
-            'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
-            'users?max=-1')
+        kl = keycloak_localize.KeycloakLocalize(
+            user_export_storage_bucket=mock.sentinel.bucket,
+            user_export_storage_passwd_object=mock.sentinel.passwd,
+        )
+        kl._fetch_users()
 
-        sample_user_1 = {
-            'id': '23dfbd85-22c3-4515-8a97-655dcd574d2d',
-            'createdTimestamp': 1585236398589,
-            'username': 'test_user_1',
-            'enabled': True,
-            'totp': False,
-            'emailVerified': False,
-            'firstName': 'First Name',
-            'federationLink': 'b4bf6a68-cf16-4f7e-ba04-1b69c2b7eed1',
-            'attributes': {
-                'loginShell': [
-                    '/bin/bash'
-                ],
-                'homeDirectory': [
-                    '/home/users/test_user_1'
-                ],
-                'LDAP_ENTRY_DN': [
-                    'uid=test_user_1,ou=People,dc=datacenter,dc=cray,dc=com'
-                ],
-                'uidNumber': [
-                    '5534'
-                ],
-                'gidNumber': [
-                    '12790'
-                ],
-                'modifyTimestamp': [
-                    '20170607185637Z'
-                ],
-                'createTimestamp': [
-                    '20170515145508Z'
-                ],
-                'LDAP_ID': [
-                    'test_user_1'
-                ],
-            },
-            'disableableCredentialTypes': [],
-            'requiredActions': [],
-            'notBefore': 0,
-            'access': {
-                'manageGroupMembership': True,
-                'view': True,
-                'mapRoles': True,
-                'impersonate': True,
-                'manage': True
-            },
-        }
+        fup_mock.assert_called_once_with(0)
+        fmt_mock.assert_called_once_with(mock.sentinel.user)
 
-        # Users with missing attributes are skipped.
-        sample_user_no_attrs = {
-            'id': '23dfbd85-22c3-4515-8a97-655dcd574d2d',
-            'createdTimestamp': 1585236398589,
-            'username': 'test_user_1',
-            'enabled': True,
-            'totp': False,
-            'emailVerified': False,
-            'firstName': 'First Name',
-            'federationLink': 'b4bf6a68-cf16-4f7e-ba04-1b69c2b7eed1',
-            'disableableCredentialTypes': [],
-            'requiredActions': [],
-            'notBefore': 0,
-            'access': {
-                'manageGroupMembership': True,
-                'view': True,
-                'mapRoles': True,
-                'impersonate': True,
-                'manage': True
-            },
-        }
+        exp_result = '\n'.join([str(mock.sentinel.user_fmt), ])
 
-        sample_user_2 = {
-            'id': '23dfbd85-22c3-4515-8a97-655dcd574d2e',
-            'createdTimestamp': 1585236398589,
-            'username': 'test_user_2',
-            'enabled': True,
-            'totp': False,
-            'emailVerified': False,
-            'firstName': 'First Name',
-            'federationLink': 'b4bf6a68-cf16-4f7e-ba04-1b69c2b7eed1',
-            'attributes': {
-                'loginShell': [
-                    '/bin/bash'
-                ],
-                'homeDirectory': [
-                    '/home/users/test_user_2'
-                ],
-                'LDAP_ENTRY_DN': [
-                    'uid=test_user_2,ou=People,dc=datacenter,dc=cray,dc=com'
-                ],
-                'uidNumber': [
-                    '5535'
-                ],
-                'gidNumber': [
-                    '12790'
-                ],
-                'modifyTimestamp': [
-                    '20170607185637Z'
-                ],
-                'createTimestamp': [
-                    '20170515145508Z'
-                ],
-                'LDAP_ID': [
-                    'test_user_2'
-                ],
-            },
-            'disableableCredentialTypes': [],
-            'requiredActions': [],
-            'notBefore': 0,
-            'access': {
-                'manageGroupMembership': True,
-                'view': True,
-                'mapRoles': True,
-                'impersonate': True,
-                'manage': True
-            },
-        }
+        s3c_mock.return_value.upload_fileobj.assert_called_once_with(
+            mock.ANY,
+            mock.sentinel.bucket,
+            mock.sentinel.passwd,
+            ExtraArgs={'ACL': 'public-read'}
+        )
 
-        responses.add(
-            responses.GET, url, status=200,
-            json=[sample_user_1, sample_user_no_attrs, sample_user_2, ])
+        user_data_sent = s3c_mock.return_value.upload_fileobj.call_args[0][0].read()
+        self.assertEqual(exp_result, user_data_sent.decode('utf-8'))
+
+        cpc_mock.assert_called_once_with(exp_result)
+
+    def test_fetch_users_multi_pages(self):
+        fup_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_users_page')).mock
+        page1 = [mock.sentinel.user1, mock.sentinel.user2, mock.sentinel.user3]
+        page2 = [mock.sentinel.user4]
+        fup_mock.side_effect = [page1, page2, Exception()]
+
+        fmt_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_format_user_passwd_entry')).mock
+        fmt_mock.side_effect = [
+            str(mock.sentinel.user1_fmt),
+            None,  # Simulate a user that couldn't be formatted.
+            str(mock.sentinel.user3_fmt),
+            str(mock.sentinel.user4_fmt),
+            Exception()
+        ]
+
+        s3c_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_s3_client',
+            new_callable=mock.PropertyMock)).mock
+        cpc_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_create_passwd_configmaps')).mock
 
         kl = keycloak_localize.KeycloakLocalize(
             user_export_storage_bucket=mock.sentinel.bucket,
             user_export_storage_passwd_object=mock.sentinel.passwd,
         )
-        kl._kc_master_admin_client_cache = requests.Session()
+        kl.fetch_users_page_size = len(page1)
         kl._fetch_users()
 
+        fup_mock.assert_has_calls([mock.call(0), mock.call(3)])
+        fmt_calls = [
+            mock.call(mock.sentinel.user1), mock.call(mock.sentinel.user2),
+            mock.call(mock.sentinel.user3), mock.call(mock.sentinel.user4)]
+        fmt_mock.assert_has_calls(fmt_calls)
+
         exp_result = '\n'.join([
-            'test_user_1::5534:12790:First Name:/home/users/test_user_1:/bin/bash',
-            'test_user_2::5535:12790:First Name:/home/users/test_user_2:/bin/bash',
+            str(mock.sentinel.user1_fmt), str(mock.sentinel.user3_fmt),
+            str(mock.sentinel.user4_fmt),
         ])
 
         s3c_mock.return_value.upload_fileobj.assert_called_once_with(
@@ -1346,20 +1279,45 @@ class TestKeycloakLocalize(testtools.TestCase):
         cpc_mock.assert_called_once_with(exp_result)
 
     @responses.activate
-    def test_fetch_users_name_source_homeDirectory(self):
-        # When user_export_name_source is the 'homeDirectory', the username in
-        # the passwd file comes from the homeDirectory attribute.
-        s3c_mock = self.useFixture(fixtures.MockPatchObject(
-            keycloak_localize.KeycloakLocalize, '_s3_client',
-            new_callable=mock.PropertyMock)).mock
-        cpc_mock = self.useFixture(fixtures.MockPatchObject(
-            keycloak_localize.KeycloakLocalize, '_create_passwd_configmaps')).mock
+    def test_fetch_users_page_some_users(self):
+        first = 0
+        max = 50
 
         url = (
-            'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
-            'users?max=-1')
+            f'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
+            f'users?first={first}&max={max}')
+        sample_user_1 = {'username': 'user1'}
+        sample_user_2 = {'username': 'user2'}
+        resp_data = [sample_user_1, sample_user_2, ]
 
-        sample_user_1 = {
+        responses.add(responses.GET, url, status=200, json=resp_data)
+
+        kl = keycloak_localize.KeycloakLocalize()
+        kl._kc_master_admin_client_cache = requests.Session()
+        res = kl._fetch_users_page(first)
+
+        self.assertEqual(res, resp_data)
+
+    @responses.activate
+    def test_fetch_users_page_no_users(self):
+        first = 0
+        max = 50
+
+        url = (
+            f'http://keycloak.services:8080/keycloak/admin/realms/shasta/'
+            f'users?first={first}&max={max}')
+        resp_data = []
+
+        responses.add(responses.GET, url, status=200, json=resp_data)
+
+        kl = keycloak_localize.KeycloakLocalize()
+        kl._kc_master_admin_client_cache = requests.Session()
+        res = kl._fetch_users_page(first)
+
+        self.assertEqual(res, resp_data)
+
+    def test_format_user_passwd_entry_user_name_source_username(self):
+        sample_user = {
             'id': '23dfbd85-22c3-4515-8a97-655dcd574d2d',
             'createdTimestamp': 1585236398589,
             'username': 'test_user_1',
@@ -1406,32 +1364,16 @@ class TestKeycloakLocalize(testtools.TestCase):
             },
         }
 
-        # Users with missing attributes are skipped.
-        sample_user_no_attrs = {
+        kl = keycloak_localize.KeycloakLocalize()
+        res = kl._format_user_passwd_entry(sample_user)
+        exp_res = 'test_user_1::5534:12790:First Name:/home/users/Test.User.1:/bin/bash'
+        self.assertEqual(exp_res, res)
+
+    def test_format_user_passwd_entry_user_name_source_homeDirectory(self):
+        sample_user = {
             'id': '23dfbd85-22c3-4515-8a97-655dcd574d2d',
             'createdTimestamp': 1585236398589,
             'username': 'test_user_1',
-            'enabled': True,
-            'totp': False,
-            'emailVerified': False,
-            'firstName': 'First Name',
-            'federationLink': 'b4bf6a68-cf16-4f7e-ba04-1b69c2b7eed1',
-            'disableableCredentialTypes': [],
-            'requiredActions': [],
-            'notBefore': 0,
-            'access': {
-                'manageGroupMembership': True,
-                'view': True,
-                'mapRoles': True,
-                'impersonate': True,
-                'manage': True
-            },
-        }
-
-        sample_user_2 = {
-            'id': '23dfbd85-22c3-4515-8a97-655dcd574d2e',
-            'createdTimestamp': 1585236398589,
-            'username': 'test_user_2',
             'enabled': True,
             'totp': False,
             'emailVerified': False,
@@ -1442,13 +1384,13 @@ class TestKeycloakLocalize(testtools.TestCase):
                     '/bin/bash'
                 ],
                 'homeDirectory': [
-                    '/home/users/test_user_2_home_dir'
+                    '/home/users/Test.User.1'
                 ],
                 'LDAP_ENTRY_DN': [
-                    'uid=test_user_2,ou=People,dc=datacenter,dc=cray,dc=com'
+                    'uid=test_user_1,ou=People,dc=datacenter,dc=cray,dc=com'
                 ],
                 'uidNumber': [
-                    '5535'
+                    '5534'
                 ],
                 'gidNumber': [
                     '12790'
@@ -1460,7 +1402,7 @@ class TestKeycloakLocalize(testtools.TestCase):
                     '20170515145508Z'
                 ],
                 'LDAP_ID': [
-                    'test_user_2'
+                    'test_user_1'
                 ],
             },
             'disableableCredentialTypes': [],
@@ -1475,34 +1417,70 @@ class TestKeycloakLocalize(testtools.TestCase):
             },
         }
 
-        responses.add(
-            responses.GET, url, status=200,
-            json=[sample_user_1, sample_user_no_attrs, sample_user_2, ])
+        kl = keycloak_localize.KeycloakLocalize(user_export_name_source='homeDirectory')
+        res = kl._format_user_passwd_entry(sample_user)
+        exp_res = 'Test.User.1::5534:12790:First Name:/home/users/Test.User.1:/bin/bash'
+        self.assertEqual(exp_res, res)
 
-        kl = keycloak_localize.KeycloakLocalize(
-            user_export_storage_bucket=mock.sentinel.bucket,
-            user_export_storage_passwd_object=mock.sentinel.passwd,
-            user_export_name_source='homeDirectory',
-        )
-        kl._kc_master_admin_client_cache = requests.Session()
-        kl._fetch_users()
+    def test_format_user_passwd_entry_no_attributes(self):
+        sample_user = {
+            'username': 'test_user_1',
+        }
 
-        exp_result = '\n'.join([
-            'Test.User.1::5534:12790:First Name:/home/users/Test.User.1:/bin/bash',
-            'test_user_2_home_dir::5535:12790:First Name:/home/users/test_user_2_home_dir:/bin/bash',
-        ])
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertIsNone(kl._format_user_passwd_entry(sample_user))
 
-        s3c_mock.return_value.upload_fileobj.assert_called_once_with(
-            mock.ANY,
-            mock.sentinel.bucket,
-            mock.sentinel.passwd,
-            ExtraArgs={'ACL': 'public-read'}
-        )
+    def test_format_user_passwd_entry_no_uidNumber(self):
+        sample_user = {
+            'username': 'test_user_1',
+            'attributes': {
+                'loginShell': ['/bin/bash', ],
+                'homeDirectory': ['/home/users/Test.User.1', ],
+                'gidNumber': ['12790', ],
+            },
+        }
 
-        user_data_sent = s3c_mock.return_value.upload_fileobj.call_args[0][0].read()
-        self.assertEqual(exp_result, user_data_sent.decode('utf-8'))
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertIsNone(kl._format_user_passwd_entry(sample_user))
 
-        cpc_mock.assert_called_once_with(exp_result)
+    def test_format_user_passwd_entry_no_gidNumber(self):
+        sample_user = {
+            'username': 'test_user_1',
+            'attributes': {
+                'loginShell': ['/bin/bash', ],
+                'homeDirectory': ['/home/users/Test.User.1', ],
+                'uidNumber': ['12345', ],
+            },
+        }
+
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertIsNone(kl._format_user_passwd_entry(sample_user))
+
+    def test_format_user_passwd_entry_no_homeDirectory(self):
+        sample_user = {
+            'username': 'test_user_1',
+            'attributes': {
+                'loginShell': ['/bin/bash', ],
+                'uidNumber': ['12345', ],
+                'gidNumber': ['12790', ],
+            },
+        }
+
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertIsNone(kl._format_user_passwd_entry(sample_user))
+
+    def test_format_user_passwd_entry_no_loginShell(self):
+        sample_user = {
+            'username': 'test_user_1',
+            'attributes': {
+                'homeDirectory': ['/home/users/Test.User.1', ],
+                'uidNumber': ['12345', ],
+                'gidNumber': ['12790', ],
+            },
+        }
+
+        kl = keycloak_localize.KeycloakLocalize()
+        self.assertIsNone(kl._format_user_passwd_entry(sample_user))
 
     def test_create_passwd_configmaps(self):
         ac_mock = self.useFixture(fixtures.MockPatchObject(
