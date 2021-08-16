@@ -243,6 +243,8 @@ class KeycloakLocalize(object):
         self.local_users = local_users
         self.local_groups = local_groups
 
+        self.fetch_users_page_size = 50
+
         self.user_export_storage_access_key = user_export_storage_access_key
         self.user_export_storage_secret_key = user_export_storage_secret_key
         self.user_export_storage_url = user_export_storage_url
@@ -771,41 +773,23 @@ class KeycloakLocalize(object):
 
     def _fetch_users(self):
         LOGGER.info("Fetching all users from Keycloak to build the passwd file...")
-        url = (
-            '{}/admin/realms/{}/users'.format(
-                self.keycloak_base, self.SHASTA_REALM_NAME))
-        response = self._kc_master_admin_client.get(url, params={'max': '-1'})
-        # TODO: follow-on work to use paging, it's safer.
-        response.raise_for_status()
-        users = response.json()
 
-        passwd_fmt = []
-        for user in users:
-            if 'attributes' not in user:
-                LOGGER.info("Skipping %s, no attributes.", user['username'])
-                continue
+        passwd_fmts = []
+        first = 0
 
-            attrs = user['attributes']
-            if ('uidNumber' not in attrs or 'gidNumber' not in attrs or 'homeDirectory' not in attrs or 'loginShell' not in attrs):
-                LOGGER.info("Skipping %s, missing attributes.", user['username'])
-                continue
+        while True:
+            users = self._fetch_users_page(first)
+            for user in users:
+                passwd_fmt = self._format_user_passwd_entry(user)
+                if passwd_fmt:
+                    passwd_fmts.append(passwd_fmt)
 
-            if self.user_export_name_source == 'homeDirectory':
-                # Extract the last element of the homeDirectory field.
-                username = attrs['homeDirectory'][0].rsplit('/', 1)[-1]
-            else:
-                username = user['username']
+            if len(users) < self.fetch_users_page_size:
+                break
 
-            passwd_fmt.append(
-                '{}::{}:{}:{}:{}:{}'.format(
-                    username,
-                    attrs['uidNumber'][0],
-                    attrs['gidNumber'][0],
-                    user['firstName'],
-                    attrs['homeDirectory'][0],
-                    attrs['loginShell'][0]))
+            first = first + self.fetch_users_page_size
 
-        passwd_fmt_str = '\n'.join(passwd_fmt)
+        passwd_fmt_str = '\n'.join(passwd_fmts)
 
         LOGGER.info("Users:\n%s", passwd_fmt_str)
         LOGGER.info(
@@ -822,6 +806,44 @@ class KeycloakLocalize(object):
         LOGGER.info("Sent user info to storage.")
 
         self._create_passwd_configmaps(passwd_fmt_str)
+
+    def _fetch_users_page(self, first):
+        LOGGER.info(
+            "Fetching %s users from Keycloak starting at %s...", self.fetch_users_page_size, first)
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/users'
+        response = self._kc_master_admin_client.get(
+            url, params={'first': first, 'max': self.fetch_users_page_size})
+        response.raise_for_status()
+        users = response.json()
+        LOGGER.info("Got %s users", len(users))
+        if users:
+            LOGGER.info("first: %r -> last: %r", users[0]['username'], users[-1]['username'])
+        return users
+
+    def _format_user_passwd_entry(self, user):
+        if 'attributes' not in user:
+            LOGGER.info("Skipping %s, no attributes.", user['username'])
+            return
+
+        attrs = user['attributes']
+        if ('uidNumber' not in attrs or 'gidNumber' not in attrs or 'homeDirectory' not in attrs or 'loginShell' not in attrs):
+            LOGGER.info("Skipping %s, missing attributes.", user['username'])
+            return
+
+        if self.user_export_name_source == 'homeDirectory':
+            # Extract the last element of the homeDirectory field.
+            username = attrs['homeDirectory'][0].rsplit('/', 1)[-1]
+        else:
+            username = user['username']
+
+        return (
+            '{}::{}:{}:{}:{}:{}'.format(
+                username,
+                attrs['uidNumber'][0],
+                attrs['gidNumber'][0],
+                user['firstName'],
+                attrs['homeDirectory'][0],
+                attrs['loginShell'][0]))
 
     def _create_passwd_configmaps(self, users_pwd_str):
         for namespace in self.user_export_namespaces:
