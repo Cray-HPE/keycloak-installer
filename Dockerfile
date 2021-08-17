@@ -40,4 +40,6 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+USER 65534:65534
+
 CMD [ "python", "keycloak_setup/keycloak_setup.py" ]
