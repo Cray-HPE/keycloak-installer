@@ -67,6 +67,10 @@ spec:
       - name: keycloak-localize
         image: {{ .Values.image.repository }}:{{ .Values.image.tag | default (include "cray-keycloak-users-localize.app-version" . ) }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsUser: 65534
+          runAsGroup: 65534
+          runAsNonRoot: true
         env:
         - name: KEYCLOAK_BASE
           value: {{ .Values.keycloakBase }}
