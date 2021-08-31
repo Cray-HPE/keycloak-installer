@@ -44,6 +44,10 @@ spec:
       - name: keycloak-setup
         image: {{ .Values.setup.image.repository }}:{{ .Values.setup.image.tag | default (include "cray-keycloak.app-version" . ) }}
         imagePullPolicy: {{ .Values.setup.image.pullPolicy }}
+        securityContext:
+          runAsUser: 65534
+          runAsGroup: 65534
+          runAsNonRoot: true
         env:
         - name: KEYCLOAK_BASE
           value: "http://{{ .Values.setup.keycloak.service }}:8080/keycloak"
