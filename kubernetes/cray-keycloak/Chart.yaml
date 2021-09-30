@@ -4,4 +4,3 @@ keywords:
 - keycloak
 name: cray-keycloak
 version: 1.12.7
-appVersion: 0.14.4
