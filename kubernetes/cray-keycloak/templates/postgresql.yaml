@@ -39,6 +39,7 @@ spec:
   volume:
     size: 10Gi
   numberOfInstances: 3
+  podPriorityClassName: csm-high-priority-service
   users:
     service_account: []
   databases:
