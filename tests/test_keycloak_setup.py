@@ -351,15 +351,6 @@ class TestKeycloakSetup(testtools.TestCase):
         c.client_roles = ['role1']
         self.assertEquals(['role1'], c.client_roles)
 
-        # validate type checking when setting service_account_client_roles
-        self.assertRaises(TypeError, setattr, c, 'service_account_client_roles', None)
-        self.assertRaises(TypeError, setattr, c, 'service_account_client_roles', {1: []})
-        self.assertRaises(TypeError, setattr, c, 'service_account_client_roles', {'client1': None})
-        self.assertRaises(Exception, setattr, c, 'service_account_client_roles', {'client1': []})
-        self.assertRaises(TypeError, setattr, c, 'service_account_client_roles', {'client1': [1]})
-        c.service_account_client_roles = {'client1': ['role1']}
-        self.assertEquals({'client1': ['role1']}, c.service_account_client_roles)
-
         # validate type checking when setting authorization_services_enabled
         self.assertRaises(TypeError, setattr, c, 'authorization_services_enabled', None)
         c.authorization_services_enabled = True
@@ -425,43 +416,37 @@ class TestKeycloakSetup(testtools.TestCase):
         client.set_req_attr('protocolMappers', client_pm)
 
         # call to get keycloak ID
-        kc_clients_uuid_url = kc_clients_url + "?clientId=" + client.id
+        kc_clients_uuid_url = f'{kc_clients_url}?clientId={client.id}'
         responses.add(
-            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}])
 
         # call to get keycloak client secret, usign 12345 as keycloak id
-        kc_clients_secret_url = '{}/admin/realms/shasta/clients/{}/client-secret'.format(kc_base, '12345')
+        kc_clients_secret_url = f'{kc_base}/admin/realms/shasta/clients/12345/client-secret'
         responses.add(
-            responses.GET, kc_clients_secret_url, status=200, json={'value': "secret"},
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_secret_url, status=200, json={'value': "secret"})
 
         # Get the service account user for the client
         kc_clients_user_url = f'{kc_base}/admin/realms/shasta/users?username=service-account-test_client'
         responses.add(
-            responses.GET, kc_clients_user_url, status=200, json=[{'id': "dummy-client-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_user_url, status=200, json=[{'id': "dummy-client-uuid", 'username': "service-account-test_client"}])
 
         # Get the client ID
         kc_clients_realm_mgmt_url = f'{kc_base}/admin/realms/shasta/clients?clientId=realm-management'
         responses.add(
-            responses.GET, kc_clients_realm_mgmt_url, status=200, json=[{'id': "dummy-client-realm-mgmt-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_realm_mgmt_url, status=200, json=[{'id': "dummy-client-realm-mgmt-uuid"}])
 
         # Get the client role ID
         kc_realm_mgmt_roles_url = f'{kc_base}/admin/realms/shasta/clients/dummy-client-realm-mgmt-uuid/roles/view-clients'
         responses.add(
-            responses.GET, kc_realm_mgmt_roles_url, status=200, json={'id': 'id', 'name': 'view-clients', 'clientRole': True},
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_realm_mgmt_roles_url, status=200, json={'id': 'id', 'name': 'view-clients', 'clientRole': True})
 
         # Post the client role list to the users endpoint
         kc_user_role_map_url = f'{kc_base}/admin/realms/shasta/users/dummy-client-uuid/role-mappings/clients/dummy-client-realm-mgmt-uuid'
         responses.add(
-            responses.POST, kc_user_role_map_url, status=204, json={},
-            headers={'location': str(mock.sentinel.location)})
+            responses.POST, kc_user_role_map_url, status=204, json={})
 
         # Request adding a service account role
-        client.service_account_client_roles = {"realm-management": ["view-clients"]}
+        client._service_account_client_roles = {"realm-management": ["view-clients"]}
 
         # Test create and create_k8s_secrets
         client.create()
@@ -552,61 +537,35 @@ class TestKeycloakSetup(testtools.TestCase):
         # Mock call to get keycloak ID
         kc_clients_uuid_url = kc_clients_url + "?clientId=" + client.id
         responses.add(
-            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}])
 
-        # Mock failure to get the service account user for the client
+        # Mock the case where a service account user for the client was not found.
+        # This will return a 200 response and an empty list.
         kc_clients_user_url = f'{kc_base}/admin/realms/shasta/users?username=service-account-test_client'
         responses.add(
-            responses.GET, kc_clients_user_url, status=404, json=[{'id': "dummy-client-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_user_url, status=200, json=[])
 
         # Request adding a service account role
-        client.service_account_client_roles = {"realm-management": ["view-clients"]}
+        client._service_account_client_roles = {"realm-management": ["view-clients"]}
+        client.create()
 
-        self.assertRaises(Exception, client.create)
+        # Verify the expected number of API calls.
+        self.assertEqual(3, len(responses.calls))
 
-        # Test the error handling when the client is not found.
+        # Test the handling when the client is not found.
         # Update the previous mock so that it will return the expected result.
         responses.replace(
-            responses.GET, kc_clients_user_url, status=200, json=[{'id': "dummy-client-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_user_url, status=200,
+            json=[{'id': "test_client-uuid", 'username': "service-account-test_client"}])
 
-        # Mock a failure to get the client ID.
+        # Mock the case where the client ID can not be found from the client name.
         kc_clients_realm_mgmt_url = f'{kc_base}/admin/realms/shasta/clients?clientId=realm-management'
         responses.add(
-            responses.GET, kc_clients_realm_mgmt_url, status=404, json=[{'id': "dummy-client-realm-mgmt-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_realm_mgmt_url, status=200,
+            json=[])
 
-        self.assertRaises(Exception, client.create)
-
-        # Test the error handling when the client role is not found.
-        # Update the previous mock so that it will return the expected result.
-        responses.replace(
-            responses.GET, kc_clients_realm_mgmt_url, status=200, json=[{'id': "dummy-client-realm-mgmt-uuid"}],
-            headers={'location': str(mock.sentinel.location)})
-
-        # Mock a failure to get the client role ID
-        kc_realm_mgmt_roles_url = f'{kc_base}/admin/realms/shasta/clients/dummy-client-realm-mgmt-uuid/roles/view-clients'
-        responses.add(
-            responses.GET, kc_realm_mgmt_roles_url, status=404, json={'id': 'id', 'name': 'view-clients', 'clientRole': True},
-            headers={'location': str(mock.sentinel.location)})
-
-        self.assertRaises(Exception, client.create)
-
-        # Test the error handling when the client role mappings result is not as expected.
-        # Update the previous mock so that it will return the expected result.
-        responses.replace(
-            responses.GET, kc_realm_mgmt_roles_url, status=200, json={'id': 'id', 'name': 'view-clients', 'clientRole': True},
-            headers={'location': str(mock.sentinel.location)})
-
-        #  Mock a failure to post the client role list to the users endpoint
-        kc_user_role_map_url = f'{kc_base}/admin/realms/shasta/users/dummy-client-uuid/role-mappings/clients/dummy-client-realm-mgmt-uuid'
-        responses.add(
-            responses.POST, kc_user_role_map_url, status=400, json={},
-            headers={'location': str(mock.sentinel.location)})
-
-        self.assertRaises(Exception, client.create)
+        client.create()
+        self.assertEqual(3 + 4, len(responses.calls))  # Expecting 4 new calls for this test
 
     @responses.activate
     def test_create_public_client(self):

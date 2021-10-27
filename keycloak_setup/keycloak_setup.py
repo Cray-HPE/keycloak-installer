@@ -427,37 +427,6 @@ class KeycloakClient(object):
             raise TypeError
         self._public_client = v
 
-    # service_account_client_roles (none by default)
-
-    @property
-    def service_account_client_roles(self):
-        return self._service_account_client_roles
-
-    @service_account_client_roles.setter
-    def service_account_client_roles(self, v):
-        """Expects {"client-name1":["client-role1",...],...}
-        Adds the above requested service account role(s) to the new client.
-        """
-        if not isinstance(v, dict):
-            raise TypeError
-
-        for client_name in v:
-            if not issubclass(type(client_name), (str)):
-                raise TypeError(f'Expecting a string for the client name {client_name}')
-
-            roles = v[client_name]
-            if not issubclass(type(roles), (list)):
-                raise TypeError(f'Expecting a list of service account roles for the client {client_name}')
-
-            if not roles:
-                raise Exception('One or more service account roles must be specified.')
-
-            for role in roles:
-                if not issubclass(type(role), (str)):
-                    raise TypeError(f'Expecting a string for the service account role {role} for the client {client_name}')
-
-        self._service_account_client_roles = v
-
     # client_roles (none by default)
 
     @property
@@ -474,7 +443,7 @@ class KeycloakClient(object):
 
         for role in v:
             if not issubclass(type(role), (str)):
-                raise TypeError(f'Expecting a string for the client role {role}.')
+                raise TypeError(f'Expecting a string for the client role {role!r}.')
 
         self._client_roles = v
 
@@ -627,47 +596,84 @@ class KeycloakClient(object):
         """
         LOGGER.info('Requested service account roles for client %s: %s', self._id, self._service_account_client_roles)
 
-        roleDict = self._service_account_client_roles
-        if not roleDict:
+        role_dict = self._service_account_client_roles
+        if not role_dict:
             LOGGER.info('No additional service account roles will be added.')
             return
 
         # Get the ID of this new client's user entry.
         client_user_name = f'service-account-{self._id}'
+        client_user_id = ''
         url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/users?username={client_user_name}'
         response = self.kas.kc_master_admin_client.get(url)
-        LOGGER.info("User ID query %s reply was: %s %s", url, response, response.json())
-        if response.status_code != 200:
-            response.raise_for_status()
-        client_user_id = response.json()[0]['id']
-        LOGGER.info("The client user %s has a client_user_id=%s", client_user_name, client_user_id)
+        LOGGER.info("User ID query %s reply was: %s %s", url, response)
+        LOGGER.debug(f'The full response was: {response.text}!r')
+
+        # Riase for HTTP errors (400-600) here.  Note that the response code will be 200 if zero or more
+        # users were found for the requested username.
+        response.raise_for_status()
+
+        # Loop the returned list of users checking for an exact match.
+        # This handles cases where multiple users might be returned because the match is not
+        # exact and can't be set to exact.  The list will be empty if no user is found.
+        for user in response.json():
+            username = user['username']
+            LOGGER.debug(f'Found user {username!r}')
+
+            if username == client_user_name:
+                client_user_id = user['id']
+                LOGGER.info(f'Found the requetsed user {username!r} with the ID: {user["id"]}')
+                break
+
+        # If we don't find the client user we can not go further in this process.  Log it and
+        # return.
+        if not client_user_id:
+            msg = (
+                'Unable to complete adding service account roles since we did not find the '
+                f'expected user name {client_user_name!r} for the cleint user.'
+            )
+            LOGGER.info(msg)
+            return
 
         # Iterate the list of clients that have roles we need to add.
-        for client in roleDict:
+        for client in role_dict:
 
             # Get the client's ID from the client name (specified by clientId)
             url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/clients?clientId={client}'
             response = self.kas.kc_master_admin_client.get(url)
-            LOGGER.info("Role client ID query %s reply was: %s %s", url, response, response.json())
-            if response.status_code != 200:
-                response.raise_for_status()
+            LOGGER.info("Role client ID query %s reply was: %s %s", url, response)
+            LOGGER.debug(f'The full response was: {response.text}!r')
+
+            # Riase for HTTP errors (400-600) here.
+            response.raise_for_status()
+
+            # If the client was not found the list will be empty.  In this case just continue on
+            # to the next requested client (if any).
+            if not response.json():
+                LOGGER.info(f'Did not find the client {client!r}.  Unable to add any requested client role for this client.')
+                continue
+
             client_id = response.json()[0]['id']
             LOGGER.info("The client %s has a client_id=%s", client, client_id)
 
             # Get the list of requested client roles
-            rr = roleDict.get(client)
+            requested_roles = role_dict[client]
 
             # Get the ID for each client role and assign to the service-account-${client} user by
             # ID (client_user_id determined above)
-            crl = []
-            LOGGER.info("The roles %s on the client %s were requested", rr, client)
-            for client_role in rr:
+            client_role_list = []
+            LOGGER.info("The roles %s on the client %s were requested", requested_roles, client)
+            for client_role in requested_roles:
                 LOGGER.info("Getting the role ID for %s", client_role)
                 url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/clients/{client_id}/roles/{client_role}'
                 response = self.kas.kc_master_admin_client.get(url)
-                LOGGER.info("Role ID query %s reply was: %s %s", url, response, response.json())
-                if response.status_code != 200:
-                    response.raise_for_status()
+                LOGGER.info("Role ID query %s reply was: %s", url, response)
+                LOGGER.debug(f'The full response was: {response.text}!r')
+
+                # Riase for HTTP errors (400-600) here.
+                # If the client_id or client_role is not found the repsonse will be 404.
+                response.raise_for_status()
+
                 client_role_id = response.json()['id']
                 LOGGER.info("The client role %s has a client_role_id=%s", client_role, client_role_id)
                 client_role_entry = {
@@ -675,23 +681,20 @@ class KeycloakClient(object):
                     'name': client_role,
                     'clientRole': True
                 }
-                LOGGER.info(f'Preparing to add the client role {client_role_entry}')
-                crl.append(client_role_entry)
-
-            if not crl:
-                LOGGER.info("Did not find any client roles to add.")
-                continue
+                LOGGER.info(f'Preparing to add the client role {client_role_entry!r}')
+                client_role_list.append(client_role_entry)
 
             # Post the client role list to the users endpoint
             # client_user_id == the user entry ID for this client's service account user
             # client_id == the client ID of the client owning any role(s) to be added to the service account user
             url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/users/{client_user_id}/role-mappings/clients/{client_id}'
-            response = self.kas.kc_master_admin_client.post(url, json=crl)
+            response = self.kas.kc_master_admin_client.post(url, json=client_role_list)
             LOGGER.info("Role mapping post %s reply was: %s", url, response)
+
+            # Riase for HTTP errors (400-600) here.
+            response.raise_for_status()
             if response.status_code == 204:
                 LOGGER.info('Created client role mapping.')
-            else:
-                response.raise_for_status()
 
 
 def k8s_apply_secret(namespace, secret_name, secret_data, v1=None):
@@ -834,11 +837,22 @@ def get_wlm_client(kas, cluster_keycloak_base):
     return wlm_client
 
 
+def init_logging():
+    # Format logs for stdout
+    log_format = "%(asctime)-15s - %(levelname)-7s - %(name)s - %(message)s"
+    requested_log_level = os.environ.get('KEYCLOAK_SETUP_LOG_LEVEL', 'INFO')
+    log_level = logging.getLevelName(requested_log_level)
+
+    if type(log_level) != int:
+        LOGGER.warning('Log level %r is not valid. Falling back to INFO', requested_log_level)
+        log_level = logging.INFO
+    logging.basicConfig(level=log_level, format=log_format)
+
+
 def main():
 
     # Configure logging
-    log_format = "%(asctime)-15s - %(levelname)-7s - %(name)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_format)
+    init_logging()
 
     # Load K8s configuration
     kubernetes.config.load_incluster_config()
@@ -1112,6 +1126,9 @@ def main():
     )
 
     # ---- System NEXUS Client ----
+    # This client is for use by the Nexus Keycloak plugin which enables
+    # Nexus to authenticate wth Keycloak realm users.
+    # https://github.com/flytreeleft/nexus3-keycloak-plugin
 
     system_nexus_client = \
         KeycloakClient(
@@ -1128,7 +1145,8 @@ def main():
 
     clients.append(system_nexus_client)
 
-    # Set core client attributes
+    # Set core client attributes as noted in the documentation
+    # at https://github.com/flytreeleft/nexus3-keycloak-plugin
     system_nexus_client.service_accounts_enabled = True
     system_nexus_client.direct_access_grants_enabled = True
     system_nexus_client.standard_flow_enabled = True
@@ -1156,12 +1174,11 @@ def main():
     # add endpoint to secret
     system_nexus_client.set_k8s_secret_attr(
         'endpoint',
-        '{}/realms/{}/protocol/openid-connect/token'.format(cluster_keycloak_base,
-                                                            kas.SHASTA_REALM_NAME)
+        f'{cluster_keycloak_base}/realms/{kas.SHASTA_REALM_NAME}/protocol/openid-connect/token'
     )
 
     # Add the required service account roles (by the plugin) to this client.
-    system_nexus_client.service_account_client_roles = \
+    system_nexus_client._service_account_client_roles = \
         {"realm-management": ["view-clients", "view-realm", "view-users"]}
 
     # Create new client role(s).
