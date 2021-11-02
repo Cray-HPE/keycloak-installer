@@ -345,6 +345,17 @@ class TestKeycloakSetup(testtools.TestCase):
         c.set_k8s_secret_attr('client-id', 'foo')
         self.assertRaises(ValueError, c.create_k8s_secrets)
 
+        # validate type checking when setting client_roles
+        self.assertRaises(TypeError, setattr, c, 'client_roles', None)
+        self.assertRaises(TypeError, setattr, c, 'client_roles', [None])
+        c.client_roles = ['role1']
+        self.assertEquals(['role1'], c.client_roles)
+
+        # validate type checking when setting authorization_services_enabled
+        self.assertRaises(TypeError, setattr, c, 'authorization_services_enabled', None)
+        c.authorization_services_enabled = True
+        self.assertTrue(c.authorization_services_enabled)
+
     @responses.activate
     def test_create_client(self):
 
@@ -405,16 +416,37 @@ class TestKeycloakSetup(testtools.TestCase):
         client.set_req_attr('protocolMappers', client_pm)
 
         # call to get keycloak ID
-        kc_clients_uuid_url = kc_clients_url + "?clientId=" + client.id
+        kc_clients_uuid_url = f'{kc_clients_url}?clientId={client.id}'
         responses.add(
-            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}],
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}])
 
         # call to get keycloak client secret, usign 12345 as keycloak id
-        kc_clients_secret_url = '{}/admin/realms/shasta/clients/{}/client-secret'.format(kc_base, '12345')
+        kc_clients_secret_url = f'{kc_base}/admin/realms/shasta/clients/12345/client-secret'
         responses.add(
-            responses.GET, kc_clients_secret_url, status=200, json={'value': "secret"},
-            headers={'location': str(mock.sentinel.location)})
+            responses.GET, kc_clients_secret_url, status=200, json={'value': "secret"})
+
+        # Get the service account user for the client
+        kc_clients_user_url = f'{kc_base}/admin/realms/shasta/users?username=service-account-test_client'
+        responses.add(
+            responses.GET, kc_clients_user_url, status=200, json=[{'id': "dummy-client-uuid", 'username': "service-account-test_client"}])
+
+        # Get the client ID
+        kc_clients_realm_mgmt_url = f'{kc_base}/admin/realms/shasta/clients?clientId=realm-management'
+        responses.add(
+            responses.GET, kc_clients_realm_mgmt_url, status=200, json=[{'id': "dummy-client-realm-mgmt-uuid"}])
+
+        # Get the client role ID
+        kc_realm_mgmt_roles_url = f'{kc_base}/admin/realms/shasta/clients/dummy-client-realm-mgmt-uuid/roles/view-clients'
+        responses.add(
+            responses.GET, kc_realm_mgmt_roles_url, status=200, json={'id': 'id', 'name': 'view-clients', 'clientRole': True})
+
+        # Post the client role list to the users endpoint
+        kc_user_role_map_url = f'{kc_base}/admin/realms/shasta/users/dummy-client-uuid/role-mappings/clients/dummy-client-realm-mgmt-uuid'
+        responses.add(
+            responses.POST, kc_user_role_map_url, status=204, json={})
+
+        # Request adding a service account role
+        client._service_account_client_roles = {"realm-management": ["view-clients"]}
 
         # Test create and create_k8s_secrets
         client.create()
@@ -424,15 +456,17 @@ class TestKeycloakSetup(testtools.TestCase):
                                                   client.k8s_secret_name,
                                                   {'client-id': client.id, 'client-secret': 'secret'})
 
-        # verify calls, there should be three:
+        # verify calls, there should be:
         # - one to create client
         # - one to get the keycloak ID for client
         # - one to get the keycloak secret for the client
+        # Additional calls are for the purpose of adding a client role as noted above.
 
-        self.assertEqual(3, len(responses.calls))
+        self.assertEqual(7, len(responses.calls))
         self.assertEqual(kc_clients_url, responses.calls[0].request.url)
 
         exp_req_body = {
+            'authorizationServicesEnabled': False,
             'clientId': client.id,
             'standardFlowEnabled': False,
             'implicitFlowEnabled': False,
@@ -445,7 +479,11 @@ class TestKeycloakSetup(testtools.TestCase):
             exp_req_body, json.loads(responses.calls[0].request.body))
 
         self.assertEqual(kc_clients_uuid_url, responses.calls[1].request.url)
-        self.assertEqual(kc_clients_secret_url, responses.calls[2].request.url)
+        self.assertEqual(kc_clients_user_url, responses.calls[2].request.url)
+        self.assertEqual(kc_clients_realm_mgmt_url, responses.calls[3].request.url)
+        self.assertEqual(kc_realm_mgmt_roles_url, responses.calls[4].request.url)
+        self.assertEqual(kc_user_role_map_url, responses.calls[5].request.url)
+        self.assertEqual(kc_clients_secret_url, responses.calls[6].request.url)
 
     @responses.activate
     def test_create_client_fail(self):
@@ -472,6 +510,62 @@ class TestKeycloakSetup(testtools.TestCase):
 
         # Test create and create_k8s_secrets
         self.assertRaises(Exception, client.create)
+
+    @responses.activate
+    def test_create_client_service_acct_role_fail(self):
+
+        """Test non-public client creation"""
+
+        kc_base = 'http://keycloak.services:8080/keycloak'
+
+        # initial client create call
+        kc_clients_url = '{}/admin/realms/shasta/clients'.format(kc_base)
+        responses.add(
+            responses.POST, kc_clients_url, status=201, json={},
+            headers={'location': str(mock.sentinel.location)})
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+
+        # create client and request properties
+        client = keycloak_setup.KeycloakClient(kcs,
+                                               kcs.SHASTA_REALM_NAME,
+                                               'test_client',
+                                               'test-k8s-secret-name',
+                                               ['test-k8s-secret-namespace']
+                                               )
+        # Mock call to get keycloak ID
+        kc_clients_uuid_url = kc_clients_url + "?clientId=" + client.id
+        responses.add(
+            responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}])
+
+        # Mock the case where a service account user for the client was not found.
+        # This will return a 200 response and an empty list.
+        kc_clients_user_url = f'{kc_base}/admin/realms/shasta/users?username=service-account-test_client'
+        responses.add(
+            responses.GET, kc_clients_user_url, status=200, json=[])
+
+        # Request adding a service account role
+        client._service_account_client_roles = {"realm-management": ["view-clients"]}
+        client.create()
+
+        # Verify the expected number of API calls.
+        self.assertEqual(3, len(responses.calls))
+
+        # Test the handling when the client is not found.
+        # Update the previous mock so that it will return the expected result.
+        responses.replace(
+            responses.GET, kc_clients_user_url, status=200,
+            json=[{'id': "test_client-uuid", 'username': "service-account-test_client"}])
+
+        # Mock the case where the client ID can not be found from the client name.
+        kc_clients_realm_mgmt_url = f'{kc_base}/admin/realms/shasta/clients?clientId=realm-management'
+        responses.add(
+            responses.GET, kc_clients_realm_mgmt_url, status=200,
+            json=[])
+
+        client.create()
+        self.assertEqual(3 + 4, len(responses.calls))  # Expecting 4 new calls for this test
 
     @responses.activate
     def test_create_public_client(self):
@@ -588,6 +682,7 @@ class TestKeycloakSetup(testtools.TestCase):
 
         # verify first call to create client
         exp_req_body = {
+            'authorizationServicesEnabled': False,
             'clientId': client.id,
             'standardFlowEnabled': False,
             'implicitFlowEnabled': False,

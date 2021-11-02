@@ -87,6 +87,15 @@ spec:
         - name: KEYCLOAK_SYSTEM_PXE_CLIENT_SECRET_NAMESPACES
           value: |
             {{ .Values.setup.keycloak.systemPXEClient.secret.namespaces | toJson }}
+        # System nexus client, used to obtain a service account token
+        # by the Nexus Keycloak plugin during authentication.
+        - name: KEYCLOAK_SYSTEM_NEXUS_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.systemNexusClient.id }}"
+        - name: KEYCLOAK_SYSTEM_PXE_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.systemNexusClient.secret.name }}"
+        - name: KEYCLOAK_SYSTEM_NEXUS_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.systemNexusClient.secret.namespaces | toJson }}
         # Gatekeeper client
         - name: KEYCLOAK_GATEKEEPER_CLIENT_ID
           value: "{{ .Values.setup.keycloak.gatekeeper.client.id }}"
