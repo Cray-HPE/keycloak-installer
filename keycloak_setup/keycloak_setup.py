@@ -606,10 +606,10 @@ class KeycloakClient(object):
         client_user_id = ''
         url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/users?username={client_user_name}'
         response = self.kas.kc_master_admin_client.get(url)
-        LOGGER.info("User ID query %s reply was: %s %s", url, response)
-        LOGGER.debug(f'The full response was: {response.text}!r')
+        LOGGER.info("User ID query %s reply was: %s", url, response)
+        LOGGER.debug("The full response was: %s", response.text)
 
-        # Riase for HTTP errors (400-600) here.  Note that the response code will be 200 if zero or more
+        # Raise for HTTP errors (400-600) here.  Note that the response code will be 200 if zero or more
         # users were found for the requested username.
         response.raise_for_status()
 
@@ -618,21 +618,18 @@ class KeycloakClient(object):
         # exact and can't be set to exact.  The list will be empty if no user is found.
         for user in response.json():
             username = user['username']
-            LOGGER.debug(f'Found user {username!r}')
+            LOGGER.debug("Found user %s", username)
 
             if username == client_user_name:
                 client_user_id = user['id']
-                LOGGER.info(f'Found the requetsed user {username!r} with the ID: {user["id"]}')
+                LOGGER.info("Found the requetsed user %s with the ID: %s", username, user["id"])
                 break
 
         # If we don't find the client user we can not go further in this process.  Log it and
         # return.
         if not client_user_id:
-            msg = (
-                'Unable to complete adding service account roles since we did not find the '
-                f'expected user name {client_user_name!r} for the cleint user.'
-            )
-            LOGGER.info(msg)
+            LOGGER.error("Unable to complete adding service account roles since we did not find "
+                         "the expected user name %s for the cleint user.", client_user_name)
             return
 
         # Iterate the list of clients that have roles we need to add.
@@ -641,16 +638,17 @@ class KeycloakClient(object):
             # Get the client's ID from the client name (specified by clientId)
             url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/clients?clientId={client}'
             response = self.kas.kc_master_admin_client.get(url)
-            LOGGER.info("Role client ID query %s reply was: %s %s", url, response)
-            LOGGER.debug(f'The full response was: {response.text}!r')
+            LOGGER.info("Role client ID query %s reply was: %s", url, response)
+            LOGGER.debug("The full response was: %s", response.text)
 
-            # Riase for HTTP errors (400-600) here.
+            # Raise for HTTP errors (400-600) here.
             response.raise_for_status()
 
             # If the client was not found the list will be empty.  In this case just continue on
             # to the next requested client (if any).
             if not response.json():
-                LOGGER.info(f'Did not find the client {client!r}.  Unable to add any requested client role for this client.')
+                LOGGER.error("Did not find the client: %s  Unable to add any requested client role for "
+                             "this client.", client)
                 continue
 
             client_id = response.json()[0]['id']
@@ -668,10 +666,12 @@ class KeycloakClient(object):
                 url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/clients/{client_id}/roles/{client_role}'
                 response = self.kas.kc_master_admin_client.get(url)
                 LOGGER.info("Role ID query %s reply was: %s", url, response)
-                LOGGER.debug(f'The full response was: {response.text}!r')
+                LOGGER.debug("The full response was: %s", response.text)
 
-                # Riase for HTTP errors (400-600) here.
+                # Raise for HTTP errors (400-600) here.
                 # If the client_id or client_role is not found the repsonse will be 404.
+                if response.status_code == 404:
+                    LOGGER.error('Was not able to find the client role %s', client_role)
                 response.raise_for_status()
 
                 client_role_id = response.json()['id']
@@ -681,7 +681,7 @@ class KeycloakClient(object):
                     'name': client_role,
                     'clientRole': True
                 }
-                LOGGER.info(f'Preparing to add the client role {client_role_entry!r}')
+                LOGGER.info("Preparing to add the client role %s", client_role_entry)
                 client_role_list.append(client_role_entry)
 
             # Post the client role list to the users endpoint
@@ -693,8 +693,16 @@ class KeycloakClient(object):
 
             # Riase for HTTP errors (400-600) here.
             response.raise_for_status()
+
+            # This should be a 204 for an insert or update and is idempotent so
+            # responses other than this are considered an error and should be reviewed.
             if response.status_code == 204:
                 LOGGER.info('Created client role mapping.')
+            else:
+                LOGGER.error('Unexpected response code of %s while trying to add one or more '
+                             'service account roles to the client user ID \'%s\'. '
+                             'The client is \'%s\'. The client role list is: %s',
+                             response.status_code, client_user_id, client_id, client_role_list)
 
 
 def k8s_apply_secret(namespace, secret_name, secret_data, v1=None):
@@ -844,7 +852,7 @@ def init_logging():
     log_level = logging.getLevelName(requested_log_level)
 
     if type(log_level) != int:
-        LOGGER.warning('Log level %r is not valid. Falling back to INFO', requested_log_level)
+        print(f'WARNING: Log level {requested_log_level} is not valid. Falling back to INFO')
         log_level = logging.INFO
     logging.basicConfig(level=log_level, format=log_format)
 

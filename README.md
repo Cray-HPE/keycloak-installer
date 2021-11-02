@@ -45,8 +45,8 @@ configured to support the system services necessary for compute node operation.
 
 A Client called `system-nexus-client` is created in Keycloak. The client is
 used by the Nexus Keycloak plugin (https://github.com/flytreeleft/nexus3-keycloak-plugin)
-to allow Nexus to authenticate wth Keycloak realm users.  
-The client is created with the realm-managment service account roles of view-clients,
+to allow Nexus to authenticate wth Keycloak Shasta realm users.  
+The client is created with the realm-management service account roles of view-clients,
 view-realm and view-users as required by the plugin. The client also has an nx-admin role which provides Nexus admin level access when the client role is assigned to a user.
 
 A Client called `system-pxe-client` is created in Keycloak. The client is
