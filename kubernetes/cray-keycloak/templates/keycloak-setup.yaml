@@ -104,6 +104,19 @@ spec:
         - name: KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES
           value: |
             {{ .Values.setup.keycloak.gatekeeper.client.secret.namespaces | toJson }}
+
+        # OAuth2-Proxy client
+        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.oauth2Proxy.client.id }}"
+        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.oauth2Proxy.client.secret.name }}"
+        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.oauth2Proxy.client.secret.namespaces | toJson }}
+        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS
+          value: |
+            {{ .Values.setup.keycloak.oauth2Proxy.proxiedHosts | toJson }}
+
         # WLM client
         - name: KEYCLOAK_WLM_CLIENT_ID
           value: "{{ .Values.setup.keycloak.wlmClient.id }}"

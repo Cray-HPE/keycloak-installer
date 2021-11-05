@@ -76,6 +76,28 @@ setup:
         - vcs_hostname.local
         - sma-grafana.local
         - sma-kibana.local
+    oauth2Proxy:
+      client:
+        id: oauth2-proxy
+        secret:
+          name: oauth2-proxy-client
+          namespaces:
+            - services
+      proxiedHosts:
+        - shs_prometheus.local
+        - shs_alertmanager.local
+        - shs_grafana.local
+        - istio_prometheus.local
+        - istio_grafana.local
+        - istio_kiali.local
+        - istio_jaeger.local
+        - kube_monitoring_prometheus.local
+        - kube_monitoring_alertmanager.local
+        - kube_monitoring_grafana.local
+        - ceph_monitoring_prometheus.local
+        - vcs_hostname.local
+        - sma-grafana.local
+        - sma-kibana.local
     customerAccessUrl: "https://auth.local/keycloak"
     masterAdminSecretName: keycloak-master-admin-auth
 

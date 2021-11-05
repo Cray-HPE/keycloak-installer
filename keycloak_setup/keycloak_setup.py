@@ -1,5 +1,22 @@
 #!/usr/bin/env python
-# Copyright 2020 Hewlett Packard Enterprise Development LP
+
+# MIT License
+# (C) Copyright [2020-2021] Hewlett Packard Enterprise Development LP
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
 
 import base64
 import json
@@ -45,6 +62,10 @@ DEFAULT_GATEKEEPER_CLIENT_ID = 'gatekeeper'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME = 'keycloak-gatekeeper-client'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
 DEFAULT_GATEKEEPER_REDIRECT_URIS = []
+
+DEFAULT_OAUTH2_PROXY_CLIENT_ID = 'oauth2-proxy'
+DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAME = 'oauth2-proxy-client'
+DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
 
 DEFAULT_WLM_CLIENT_ID = 'wlm-client'
 DEFAULT_WLM_CLIENT_SECRET_NAME = 'wlm-client-auth'
@@ -993,6 +1014,47 @@ def main():
         'discovery-url',
         '{}/realms/{}'.format(customer_access_url, kas.SHASTA_REALM_NAME)
     )
+
+    # ---- Oath2 Proxy Client ----
+
+    oauth2_proxy_client_id = os.environ.get(
+        'KEYCLOAK_OAUTH2_PROXY_CLIENT_ID', DEFAULT_OAUTH2_PROXY_CLIENT_ID)
+    oauth2_proxy_client_secret_name = os.environ.get(
+        'KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAME',
+        DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAME)
+    oauth2_proxy_client_secret_namespaces_str = os.environ.get(
+        'KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES',
+        DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES)
+    oauth2_proxy_client_secret_namespaces = json.loads(
+        oauth2_proxy_client_secret_namespaces_str)
+
+    oauth2_proxy_client = (
+        KeycloakClient(
+            kas,
+            kas.SHASTA_REALM_NAME,
+            oauth2_proxy_client_id,
+            oauth2_proxy_client_secret_name,
+            oauth2_proxy_client_secret_namespaces
+        ))
+
+    # Set core client attributes
+    oauth2_proxy_client.standard_flow_enabled = True
+    oauth2_proxy_client.service_accounts_enabled = True
+
+    # load and set redirect URIs
+    oauth2_proxy_proxied_hosts = json.loads(
+        os.environ['KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS'])
+    oauth2_proxy_redirect_uris = [
+        f'https://{hostname}/oauth/callback'
+        for hostname in oauth2_proxy_proxied_hosts
+    ]
+    oauth2_proxy_client.set_req_attr('redirectUris', oauth2_proxy_redirect_uris)
+
+    oauth2_proxy_client.set_k8s_secret_attr(
+        'discovery-url', f'{customer_access_url}/realms/{kas.SHASTA_REALM_NAME}'
+    )
+
+    clients.append(oauth2_proxy_client)
 
     # ---- Admin Client ----
 
