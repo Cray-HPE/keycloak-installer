@@ -69,6 +69,14 @@ services by requiring valid redirect URIs to be explicitly defined. Also,
 the keycloak-gatekeeper-client secret is created to enable keycloak-gatekeeper
 to connect to Keycloak.
 
+A Client called `oauth2-proxy` is created in Keycloak. This client is used by
+the OAuth2-Proxy ingress to facilitate authentication for web UIs,
+before forwarding traffic to the Istio ingress gateway, which uses OPA and
+enforces authorization. This client is configured to support specific
+services by requiring valid redirect URIs to be explicitly defined. Also,
+the oauth2-proxy-client secret is created that contains the client secret so
+that the OAuth2-Proxy can get the secret.
+
 A Client called `shasta` is created in Keycloak. This client is public and is
 meant to be used when accessing the Cray services. This client has protocol
 mappers that make the uid and gid attributes for the user available to the
@@ -123,10 +131,20 @@ unable to verify the id token	{"error": "oidc: JWT claims invalid: invalid claim
 - KEYCLOAK_GATEKEEPER_PROXIED_HOSTS: JSON-encoded list of hostnames that the
   keycloak-gatekeeper ingress will proxy. Used to set the list of valid
   redirect URIs for the gatekeeper client.
+- KEYCLOAK_OAUTH2_PROXY_CLIENT_ID: Name of the OAuth2-Proxy client.
+  Defaults to `oauth2-proxy`.
+- KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAME: Name of the secret that stores the
+  OAuth2-Proxy client info. Defaults to `oauth2-proxy-client`.
+- KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES: JSON-encoded list of
+  namespaces that the gatekeeper client secret will be created in. Defaults to
+  `['services']`.
+- KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS: JSON-encoded list of hostnames
+  that the OAuth2-Proxy ingress will proxy. Used to set the list of valid
+  redirect URIs for the gatekeeper client.
 - KEYCLOAK_CUSTOMER_ACCESS_URL: The URL used to access Keycloak from the
   customer access network (CAN). Necessary to properly configure
-  keycloak-gatekeeper ingress to connect to Keycloak and redirect users to
-  Keycloak for login.
+  keycloak-gatekeeper/OAuth2-Proxy ingress to connect to Keycloak and redirect
+  users to Keycloak for login.
 - KEYCLOAK_WLM_CLIENT_ID: Name of the WLM client.
   Defaults to `wlm-client`.
 - KEYCLOAK_WLM_CLIENT_SECRET_NAME: Name of the secret that stores the

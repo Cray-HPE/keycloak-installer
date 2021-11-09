@@ -1008,6 +1008,9 @@ class TestKeycloakSetup(testtools.TestCase):
         self.assertEqual(exp, ret)
 
     def test_main(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS', '[]'))
+
         self.useFixture(fixtures.MockPatchObject(
             keycloak_setup.kubernetes.config, 'load_incluster_config'))
         rkmas_ret = {
