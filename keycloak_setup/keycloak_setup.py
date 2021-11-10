@@ -61,7 +61,6 @@ DEFAULT_SYSTEM_NEXUS_CLIENT_SECRET_NAMESPACES = json.dumps(['default'])
 DEFAULT_GATEKEEPER_CLIENT_ID = 'gatekeeper'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME = 'keycloak-gatekeeper-client'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
-DEFAULT_GATEKEEPER_REDIRECT_URIS = []
 
 DEFAULT_OAUTH2_PROXY_CLIENT_ID = 'oauth2-proxy'
 DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAME = 'oauth2-proxy-client'
@@ -913,108 +912,6 @@ def main():
 
     clients = list()
 
-    # ---- Gatekeeper Client ----
-
-    gatekeeper_client = \
-        KeycloakClient(
-            kas,
-            kas.SHASTA_REALM_NAME,
-            os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_ID',
-                           DEFAULT_GATEKEEPER_CLIENT_ID),
-            os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAME',
-                           DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME),
-            [n for n in json.loads(
-                os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES',
-                               DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES))]
-        )
-
-    clients.append(gatekeeper_client)
-
-    # Set core client attributes
-    gatekeeper_client.standard_flow_enabled = True
-    gatekeeper_client.service_accounts_enabled = True
-
-    # load and set redirect URIs
-    gatekeeper_redirect_uris = None
-    gatekeeper_proxied_hosts = os.environ.get('KEYCLOAK_GATEKEEPER_PROXIED_HOSTS')
-    if gatekeeper_proxied_hosts:
-        gatekeeper_proxied_hosts = json.loads(gatekeeper_proxied_hosts)
-        gatekeeper_redirect_uris = [
-            'https://{}/oauth/callback'.format(hostname)
-            for hostname in gatekeeper_proxied_hosts
-        ]
-
-    gatekeeper_client.set_req_attr('redirectUris',
-                                   gatekeeper_redirect_uris)
-
-    # add protocol mappers
-    gatekeeper_pm = [
-        # XXX Not sure which protocol mappers are necessary for gatekeeper client
-        {
-            'name': 'uid-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'uidNumber',
-                'claim.name': 'uidNumber',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'gid-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'gidNumber',
-                'claim.name': 'gidNumber',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'loginshell-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'loginShell',
-                'claim.name': 'loginShell',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'homedirectory-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'homeDirectory',
-                'claim.name': 'homeDirectory',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': True,
-                'access.token.claim': True,
-            },
-        },
-    ]
-
-    gatekeeper_client.set_req_attr('protocolMappers',
-                                   gatekeeper_pm)
-
-    # add discovery URL to secret
-    gatekeeper_client.set_k8s_secret_attr(
-        'discovery-url',
-        '{}/realms/{}'.format(customer_access_url, kas.SHASTA_REALM_NAME)
-    )
-
     # ---- Oath2 Proxy Client ----
 
     oauth2_proxy_client_id = os.environ.get(
@@ -1086,15 +983,6 @@ def main():
             'consentRequired': False,
             'config': {
                 'role': 'shasta.admin',
-            },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
-                'access.token.claim': True,
             },
         },
     ]
@@ -1331,15 +1219,6 @@ def main():
                 'id.token.claim': True,
                 'access.token.claim': True,
             },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
-                'access.token.claim': True,
-            },
         },
     ]
 
@@ -1414,15 +1293,6 @@ def main():
             'config': {
                 'included.client.audience': public_client.id,
                 'id.token.claim': True,
-                'access.token.claim': True,
-            },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
                 'access.token.claim': True,
             },
         },
