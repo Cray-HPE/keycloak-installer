@@ -13,8 +13,10 @@ metadata:
 spec:
   hosts:
     - "*"
+  {{- with .Values.keycloak.ingress.gateways }}
   gateways:
-    - services-gateway
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   http:
     # This route rule sets the Cache-Control response header when fetching
     # certs so that clients (e.g., OPA) will cache it.

@@ -106,6 +106,13 @@ keycloak:
   imagesHost: dtr.dev.cray.com
   kubectlImageVersion: "0.2.0"
 
+# A list of gateways that keycloak is exposed
+  ingress:
+    gateways:
+    - "services-gateway"
+    - "customer-admin-gateway"
+    - "customer-user-gateway"
+
   keycloak:
     replicas: 3
     podAnnotations:
