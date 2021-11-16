@@ -105,18 +105,6 @@ spec:
           value: |
             {{ .Values.setup.keycloak.gatekeeper.client.secret.namespaces | toJson }}
 
-        # OAuth2-Proxy client
-        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_ID
-          value: "{{ .Values.setup.keycloak.oauth2Proxy.client.id }}"
-        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAME
-          value: "{{ .Values.setup.keycloak.oauth2Proxy.client.secret.name }}"
-        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES
-          value: |
-            {{ .Values.setup.keycloak.oauth2Proxy.client.secret.namespaces | toJson }}
-        - name: KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS
-          value: |
-            {{ .Values.setup.keycloak.oauth2Proxy.proxiedHosts | toJson }}
-
         # WLM client
         - name: KEYCLOAK_WLM_CLIENT_ID
           value: "{{ .Values.setup.keycloak.wlmClient.id }}"
@@ -125,6 +113,12 @@ spec:
         - name: KEYCLOAK_WLM_CLIENT_SECRET_NAMESPACES
           value: |
             {{ .Values.setup.keycloak.wlmClient.secret.namespaces | toJson }}
+
+        # Other clients
+        - name: KEYCLOAK_CLIENTS
+          value: |
+            {{ .Values.setup.keycloak.clients | toJson }}
+
         volumeMounts:
         - name: keycloak-master-admin-auth-vol
           mountPath: /mnt/keycloak-master-admin-auth-vol

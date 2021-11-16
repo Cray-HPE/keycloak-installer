@@ -76,28 +76,37 @@ setup:
         - vcs_hostname.local
         - sma-grafana.local
         - sma-kibana.local
-    oauth2Proxy:
-      client:
-        id: oauth2-proxy
+    clients:
+      oauth2-proxy-customer-management:
+        type: confidential
+        standardFlowEnabled: true
+        serviceAccountsEnabled: true
+        proxiedHosts:
+        - override-me.cmn.local
         secret:
-          name: oauth2-proxy-client
+          name: oauth2-proxy-customer-management-client
           namespaces:
-            - services
-      proxiedHosts:
-        - shs_prometheus.local
-        - shs_alertmanager.local
-        - shs_grafana.local
-        - istio_prometheus.local
-        - istio_grafana.local
-        - istio_kiali.local
-        - istio_jaeger.local
-        - kube_monitoring_prometheus.local
-        - kube_monitoring_alertmanager.local
-        - kube_monitoring_grafana.local
-        - ceph_monitoring_prometheus.local
-        - vcs_hostname.local
-        - sma-grafana.local
-        - sma-kibana.local
+          - services
+      oauth2-proxy-customer-access:
+        type: confidential
+        standardFlowEnabled: true
+        serviceAccountsEnabled: true
+        proxiedHosts:
+        - override-me.can.local
+        secret:
+          name: oauth2-proxy-customer-access-client
+          namespaces:
+          - services
+      oauth2-proxy-customer-high-speed:
+        type: confidential
+        standardFlowEnabled: true
+        serviceAccountsEnabled: true
+        proxiedHosts:
+        - override-me.chn.local
+        secret:
+          name: oauth2-proxy-customer-high-speed-client
+          namespaces:
+          - services
     customerAccessUrl: "https://auth.local/keycloak"
     masterAdminSecretName: keycloak-master-admin-auth
 

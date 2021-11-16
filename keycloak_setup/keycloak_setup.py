@@ -63,10 +63,6 @@ DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME = 'keycloak-gatekeeper-client'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
 DEFAULT_GATEKEEPER_REDIRECT_URIS = []
 
-DEFAULT_OAUTH2_PROXY_CLIENT_ID = 'oauth2-proxy'
-DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAME = 'oauth2-proxy-client'
-DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
-
 DEFAULT_WLM_CLIENT_ID = 'wlm-client'
 DEFAULT_WLM_CLIENT_SECRET_NAME = 'wlm-client-auth'
 DEFAULT_WLM_CLIENT_SECRET_NAMESPACES = json.dumps(['default'])
@@ -726,6 +722,55 @@ class KeycloakClient(object):
                              response.status_code, client_user_id, client_id, client_role_list)
 
 
+def create_keycloak_client_from_spec(client_id, spec, kas, customer_access_url):
+    secret_name = None
+    secret_namespaces = None
+
+    if 'secret' in spec:
+        secret_name = spec['secret']['name']
+        secret_namespaces = spec['secret']['namespaces']
+
+    keycloak_client = (
+        KeycloakClient(
+            kas,
+            kas.SHASTA_REALM_NAME,
+            client_id,
+            secret_name,
+            secret_namespaces
+        ))
+
+    if secret_name:
+        keycloak_client.set_k8s_secret_attr(
+            'discovery-url',
+            f'{customer_access_url}/realms/{kas.SHASTA_REALM_NAME}'
+        )
+
+    keycloak_client.standard_flow_enabled = (
+        spec.get('standardFlowEnabled', False))
+    keycloak_client.implicit_flow_enabled = (
+        spec.get('implicitFlowEnabled', False))
+    keycloak_client.direct_access_grants_enabled = (
+        spec.get('directAccessGrantsEnabled', False))
+    keycloak_client.service_accounts_enabled = (
+        spec.get('serviceAccountsEnabled', False))
+    keycloak_client.authorization_services_enabled = (
+        spec.get('authorizationServicesEnabled', False))
+
+    type = spec.get('type', 'confidential')
+    if type == 'public':
+        keycloak_client.public_client = True
+
+    proxied_hosts = spec.get('proxiedHosts')
+    if proxied_hosts:
+        redirect_uris = [
+            f'https://{hostname}/oauth/callback'
+            for hostname in proxied_hosts
+        ]
+        keycloak_client.set_req_attr('redirectUris', redirect_uris)
+
+    return keycloak_client
+
+
 def k8s_apply_secret(namespace, secret_name, secret_data, v1=None):
     if v1 is None:
         v1 = kubernetes.client.CoreV1Api()
@@ -1014,47 +1059,6 @@ def main():
         'discovery-url',
         '{}/realms/{}'.format(customer_access_url, kas.SHASTA_REALM_NAME)
     )
-
-    # ---- Oath2 Proxy Client ----
-
-    oauth2_proxy_client_id = os.environ.get(
-        'KEYCLOAK_OAUTH2_PROXY_CLIENT_ID', DEFAULT_OAUTH2_PROXY_CLIENT_ID)
-    oauth2_proxy_client_secret_name = os.environ.get(
-        'KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAME',
-        DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAME)
-    oauth2_proxy_client_secret_namespaces_str = os.environ.get(
-        'KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES',
-        DEFAULT_OAUTH2_PROXY_CLIENT_SECRET_NAMESPACES)
-    oauth2_proxy_client_secret_namespaces = json.loads(
-        oauth2_proxy_client_secret_namespaces_str)
-
-    oauth2_proxy_client = (
-        KeycloakClient(
-            kas,
-            kas.SHASTA_REALM_NAME,
-            oauth2_proxy_client_id,
-            oauth2_proxy_client_secret_name,
-            oauth2_proxy_client_secret_namespaces
-        ))
-
-    # Set core client attributes
-    oauth2_proxy_client.standard_flow_enabled = True
-    oauth2_proxy_client.service_accounts_enabled = True
-
-    # load and set redirect URIs
-    oauth2_proxy_proxied_hosts = json.loads(
-        os.environ['KEYCLOAK_OAUTH2_PROXY_CLIENT_PROXIED_HOSTS'])
-    oauth2_proxy_redirect_uris = [
-        f'https://{hostname}/oauth/callback'
-        for hostname in oauth2_proxy_proxied_hosts
-    ]
-    oauth2_proxy_client.set_req_attr('redirectUris', oauth2_proxy_redirect_uris)
-
-    oauth2_proxy_client.set_k8s_secret_attr(
-        'discovery-url', f'{customer_access_url}/realms/{kas.SHASTA_REALM_NAME}'
-    )
-
-    clients.append(oauth2_proxy_client)
 
     # ---- Admin Client ----
 
@@ -1430,6 +1434,19 @@ def main():
 
     public_client.set_req_attr('protocolMappers',
                                public_client_pm)
+
+    # Extra clients
+    client_specs_json = os.environ.get('KEYCLOAK_CLIENTS')
+    if client_specs_json:
+        client_specs = json.loads(client_specs_json)
+    else:
+        client_specs = {}
+
+    for client_id in client_specs:
+        keycloak_client = (
+            create_keycloak_client_from_spec(
+                client_id, client_specs[client_id], kas, customer_access_url))
+        clients.append(keycloak_client)
 
     # Keep retrying. Might fail because Keycloak hasn't started up yet.
     while True:
