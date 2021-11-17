@@ -826,6 +826,75 @@ class TestKeycloakSetup(testtools.TestCase):
 
         self.assertRaises(Exception, client.create)
 
+    def test_create_keycloak_client_from_spec_minimal(self):
+        client_id = str(mock.sentinel.client_id)
+        min_spec = {}  # All of the keys are optional.
+        kcs = keycloak_setup.KeycloakSetup()
+        customer_access_url = str(mock.sentinel.customer_access_url)
+        res = keycloak_setup.create_keycloak_client_from_spec(
+            client_id, min_spec, kcs, customer_access_url)
+        self.assertEqual(kcs, res.kas)
+        self.assertEqual(kcs.SHASTA_REALM_NAME, res.realm)
+        self.assertEqual(client_id, res.id)
+        self.assertIsNone(res.k8s_secret_name)
+        self.assertIsNone(res.k8s_secret_namespaces)
+        self.assertEqual({}, res._k8s_secret_ext_attr)
+        self.assertIs(res.standard_flow_enabled, False)
+        self.assertIs(res.implicit_flow_enabled, False)
+        self.assertIs(res.direct_access_grants_enabled, False)
+        self.assertIs(res.service_accounts_enabled, False)
+        self.assertIs(res.authorization_services_enabled, False)
+        self.assertIs(res.public_client, False)
+        self.assertEqual({}, res._kc_ext_attr)
+
+    def test_create_keycloak_client_from_spec_all(self):
+        client_id = str(mock.sentinel.client_id)
+        spec = {  # Sets all the possible keys
+            'type': 'public',
+            'standardFlowEnabled': True,
+            'implicitFlowEnabled': True,
+            'directAccessGrantsEnabled': True,
+            'serviceAccountsEnabled': True,
+            'authorizationServicesEnabled': True,
+            'proxiedHosts': [
+                'test1',
+                'test2',
+            ],
+            'secret': {
+                'name': 'secret1',
+                'namespaces': ['namespace1', 'namespace2'],
+            }
+        }
+        kcs = keycloak_setup.KeycloakSetup()
+        customer_access_url = str(mock.sentinel.customer_access_url)
+        res = keycloak_setup.create_keycloak_client_from_spec(
+            client_id, spec, kcs, customer_access_url)
+        self.assertEqual(kcs, res.kas)
+        self.assertEqual(kcs.SHASTA_REALM_NAME, res.realm)
+        self.assertEqual(client_id, res.id)
+        self.assertEqual('secret1', res.k8s_secret_name)
+        self.assertEqual(['namespace1', 'namespace2'], res.k8s_secret_namespaces)
+
+        exp_secret_ext_attr = {
+            'discovery-url': f'{customer_access_url}/realms/shasta'
+        }
+
+        self.assertEqual(exp_secret_ext_attr, res._k8s_secret_ext_attr)
+        self.assertIs(res.standard_flow_enabled, True)
+        self.assertIs(res.implicit_flow_enabled, True)
+        self.assertIs(res.direct_access_grants_enabled, True)
+        self.assertIs(res.service_accounts_enabled, True)
+        self.assertIs(res.authorization_services_enabled, True)
+        self.assertIs(res.public_client, True)
+
+        exp_ext_attr = {
+            'redirectUris': [
+                'https://test1/oauth/callback',
+                'https://test2/oauth/callback',
+            ]
+        }
+        self.assertEqual(exp_ext_attr, res._kc_ext_attr)
+
     def test_k8s_get_secret(self):
         # Mocks out kubernetes CoreV1Api object and read_namespaced_secret()
         # method.
