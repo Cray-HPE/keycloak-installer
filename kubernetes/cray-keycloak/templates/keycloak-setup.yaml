@@ -91,7 +91,7 @@ spec:
         # by the Nexus Keycloak plugin during authentication.
         - name: KEYCLOAK_SYSTEM_NEXUS_CLIENT_ID
           value: "{{ .Values.setup.keycloak.systemNexusClient.id }}"
-        - name: KEYCLOAK_SYSTEM_PXE_CLIENT_SECRET_NAME
+        - name: KEYCLOAK_SYSTEM_NEXUS_CLIENT_SECRET_NAME
           value: "{{ .Values.setup.keycloak.systemNexusClient.secret.name }}"
         - name: KEYCLOAK_SYSTEM_NEXUS_CLIENT_SECRET_NAMESPACES
           value: |
