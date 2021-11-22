@@ -1,19 +1,5 @@
-This is the Keycloak installer. See the [roles](roles/keycloak/README.md)
-
-## keycloak deploy
-
-See the README.md files in
-
-- roles/keycloak : Sets variables
-- roles/keycloak_loftsman_init : Creates customizations for Helm chart
-- roles/keycloak_deploy : Deploys other Keycloak K8s objects and customizes
-  setup for the cray-keycloak-gatekeeper chart (in cray-charts)
-- roles/keycloak-manifest : Deploys helm manifest for the cray-keycloak-gatekeeper chart
-- roles/keycloak_localize : Run during localization phase
-
-The Helm chart is in kubernetes/keycloak.
-
-The keycloak-localize.yml playbook runs the keycloak_localize role.
+This repository contains Helm charts to deploy and set up Keycloak for Shasta
+systems.
 
 ## keycloak-setup docker image
 
@@ -61,14 +47,6 @@ The client is created with a *Hardcoded Role* mapper that adds the
 *shasta.wlm* role to the token. The client and role is configured to support
 workload manager use of various system management APIs.
 
-A Client called `gatekeeper` is created in Keycloak. This client is used by
-the keycloak-gatekeeper ingress to facilitate authentication for web UIs,
-before forwarding traffic to the Istio ingress gateway, which uses OPA and
-enforces authorization. This client is configured to support specific
-services by requiring valid redirect URIs to be explicitly defined. Also,
-the keycloak-gatekeeper-client secret is created to enable keycloak-gatekeeper
-to connect to Keycloak.
-
 A Client called `shasta` is created in Keycloak. This client is public and is
 meant to be used when accessing the Cray services. This client has protocol
 mappers that make the uid and gid attributes for the user available to the
@@ -111,6 +89,13 @@ is an object that describes the client to create:
   },
 }
 ```
+
+The client named in the `KEYCLOAK_GATEKEEPER_CLIENT_ID` environment variable is
+deleted if it exists. The Kubernetes Secret named in the
+`KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAME` environment variable is deleted from
+all the namespaces in the `KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES`
+environment variable. This is to clean up objects that were created for the
+gatekeeper client that are no longer used.
 
 #### Environment variables
 
