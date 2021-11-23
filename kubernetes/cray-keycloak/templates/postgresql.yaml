@@ -123,7 +123,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: "postgres-watcher-service-db"
-          image: "{{ .Values.imagesHost }}/cache/postgres:13.2"
+          image: {{ .Values.sqlCluster.image.repository }}:{{ .Values.sqlCluster.image.tag }}
+          imagePullPolicy: {{ .Values.sqlCluster.image.pullPolicy }}
           securityContext:
             runAsUser: 65534
             runAsGroup: 65534
