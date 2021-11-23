@@ -24,6 +24,18 @@ class TestKeycloakSetup(testtools.TestCase):
 
         skc_mock.assert_called_once_with()
 
+    def test_run_post_clients(self):
+        ccs_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_cleanup_clients')).mock
+        css_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_cleanup_secrets')).mock
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs.run_post_clients()
+
+        ccs_mock.assert_called_once_with()
+        css_mock.assert_called_once_with()
+
     def test_kc_master_admin_client(self):
         kcs = keycloak_setup.KeycloakSetup()
 
@@ -170,6 +182,156 @@ class TestKeycloakSetup(testtools.TestCase):
         responses.add(responses.POST, kc_realms_url, status=401, json={})
 
         self.assertRaises(Exception, kcs.create_realm, kcs.SHASTA_REALM_NAME)
+
+    @responses.activate
+    def test_calc_client_url_found(self):
+        realm_url = 'http://keycloak.services:8080/keycloak/admin/realms/shasta'
+        clients_url = f'{realm_url}/clients'
+        fake_id = str(mock.sentinel.id)
+        responses.add(responses.GET, clients_url, json=[{'id': fake_id}])
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+        fake_client_id = str(mock.sentinel.client_id)
+        res = kcs.calc_client_url(fake_client_id)
+        exp_client_url = f'{clients_url}/{fake_id}'
+        self.assertEqual(exp_client_url, res)
+
+        exp_query_url = f'{clients_url}?clientId={fake_client_id}'
+        self.assertEqual(exp_query_url, responses.calls[0].request.url)
+
+    @responses.activate
+    def test_calc_client_url_not_found(self):
+        realm_url = 'http://keycloak.services:8080/keycloak/admin/realms/shasta'
+        clients_url = f'{realm_url}/clients'
+        responses.add(responses.GET, clients_url, json=[])
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+        fake_client_id = str(mock.sentinel.client_id)
+        res = kcs.calc_client_url(fake_client_id)
+        self.assertIsNone(res)
+
+    @responses.activate
+    def test_calc_client_url_error(self):
+        realm_url = 'http://keycloak.services:8080/keycloak/admin/realms/shasta'
+        clients_url = f'{realm_url}/clients'
+        responses.add(responses.GET, clients_url, status=500, json=[])
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+        fake_client_id = str(mock.sentinel.client_id)
+        self.assertRaises(
+            requests.exceptions.HTTPError, kcs.calc_client_url, fake_client_id)
+
+    def test_cleanup_clients(self):
+        cc_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_cleanup_client')).mock
+        clients_to_cleanup = [str(mock.sentinel.client1)]
+        kcs = keycloak_setup.KeycloakSetup(clients_to_cleanup=clients_to_cleanup)
+        kcs._cleanup_clients()
+        cc_mock.assert_called_once_with(str(mock.sentinel.client1))
+
+    @responses.activate
+    def test_cleanup_client_exists(self):
+        ccu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, 'calc_client_url')).mock
+        fake_url = 'http://keycloak.services:8080/whatever'
+        ccu_mock.return_value = fake_url
+
+        responses.add(responses.DELETE, fake_url, status=204)
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+        fake_client_id = str(mock.sentinel.client_id)
+        kcs._cleanup_client(fake_client_id)
+
+        ccu_mock.assert_called_once_with(fake_client_id)
+        self.assertEqual(1, len(responses.calls))
+
+    def test_cleanup_client_not_found(self):
+        ccu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, 'calc_client_url')).mock
+        ccu_mock.return_value = None
+        kcs = keycloak_setup.KeycloakSetup()
+        fake_client_id = str(mock.sentinel.client_id)
+        kcs._cleanup_client(fake_client_id)
+        ccu_mock.assert_called_once_with(fake_client_id)
+
+    @responses.activate
+    def test_cleanup_client_error(self):
+        # When _cleanup_client is called and the delete operation fails
+        # the error is ignored.
+        ccu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, 'calc_client_url')).mock
+        fake_url = 'http://keycloak.services:8080/whatever'
+        ccu_mock.return_value = fake_url
+
+        responses.add(responses.DELETE, fake_url, status=500)
+
+        kcs = keycloak_setup.KeycloakSetup()
+        kcs._kc_master_admin_client_cache = requests.Session()
+        fake_client_id = str(mock.sentinel.client_id)
+        kcs._cleanup_client(fake_client_id)
+
+        ccu_mock.assert_called_once_with(fake_client_id)
+        self.assertEqual(1, len(responses.calls))
+
+    def test_cleanup_secrets(self):
+        cs_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_cleanup_secret')).mock
+        fake_secret_name = str(mock.sentinel.secret_1)
+        fake_secret_namespaces = [str(mock.sentinel.namespace1_1)]
+        secrets_to_cleanup = [
+            {
+                'name': fake_secret_name,
+                'namespaces': fake_secret_namespaces,
+            },
+        ]
+        kcs = keycloak_setup.KeycloakSetup(secrets_to_cleanup=secrets_to_cleanup)
+        kcs._cleanup_secrets()
+        cs_mock.assert_called_once_with(fake_secret_name, fake_secret_namespaces)
+
+    def test_cleanup_secret(self):
+        ds_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_delete_secret')).mock
+        kcs = keycloak_setup.KeycloakSetup()
+        fake_secret_name = str(mock.sentinel.secret_1)
+        fake_secret_namespace = str(mock.sentinel.namespace1_1)
+        fake_secret_namespaces = [fake_secret_namespace]
+        kcs._cleanup_secret(fake_secret_name, fake_secret_namespaces)
+        ds_mock.assert_called_once_with(fake_secret_name, fake_secret_namespace)
+
+    def test_delete_secret_deleted(self):
+        kcs = keycloak_setup.KeycloakSetup()
+        k8s_corev1_mock = mock.Mock()
+        kcs._k8s_corev1_cache = k8s_corev1_mock
+        fake_secret_name = str(mock.sentinel.secret_1)
+        fake_namespace = str(mock.sentinel.namespace1_1)
+        kcs._delete_secret(fake_secret_name, fake_namespace)
+        k8s_corev1_mock.delete_namespaced_secret.assert_called_once_with(
+            fake_secret_name, fake_namespace)
+
+    def test_delete_secret_doesnt_exist(self):
+        # If the secret already doesn't exist, that's ignored.
+        kcs = keycloak_setup.KeycloakSetup()
+        k8s_corev1_mock = mock.Mock()
+        k8s_corev1_mock.delete_namespaced_secret.side_effect = rest.ApiException(404)
+        kcs._k8s_corev1_cache = k8s_corev1_mock
+        fake_secret_name = str(mock.sentinel.secret_1)
+        fake_namespace = str(mock.sentinel.namespace1_1)
+        kcs._delete_secret(fake_secret_name, fake_namespace)
+
+    def test_delete_secret_fails(self):
+        # If there's another error deleting the secret it's re-raised.
+        kcs = keycloak_setup.KeycloakSetup()
+        k8s_corev1_mock = mock.Mock()
+        k8s_corev1_mock.delete_namespaced_secret.side_effect = rest.ApiException(403)
+        kcs._k8s_corev1_cache = k8s_corev1_mock
+        fake_secret_name = str(mock.sentinel.secret_1)
+        fake_namespace = str(mock.sentinel.namespace1_1)
+        self.assertRaises(
+            rest.ApiException, kcs._delete_secret, fake_secret_name, fake_namespace)
 
     def test_client_input_validation(self):
 
@@ -1103,6 +1265,8 @@ class TestKeycloakSetup(testtools.TestCase):
 
         rkmas_mock.assert_called_once_with()
 
+        exp_clients_to_cleanup = ['gatekeeper']
+        exp_secrets_to_cleanup = [{'name': 'keycloak-gatekeeper-client', 'namespaces': ['services']}]
         kcs_mock.assert_called_once_with(
             keycloak_base=None,
             cluster_keycloak_base=None,
@@ -1110,6 +1274,8 @@ class TestKeycloakSetup(testtools.TestCase):
             kc_master_admin_password=str(mock.sentinel.password),
             kc_master_admin_username=str(mock.sentinel.user),
             customer_access_url=None,
+            clients_to_cleanup=exp_clients_to_cleanup,
+            secrets_to_cleanup=exp_secrets_to_cleanup,
         )
 
         kcs_mock.return_value.run.assert_called_once_with()

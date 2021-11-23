@@ -85,6 +85,8 @@ class KeycloakSetup(object):
             kc_master_admin_username=None,
             kc_master_admin_password=None,
             customer_access_url=None,
+            clients_to_cleanup=None,
+            secrets_to_cleanup=None,
     ):
         self.keycloak_base = keycloak_base or DEFAULT_KEYCLOAK_BASE
         self.cluster_keycloak_base = cluster_keycloak_base or DEFAULT_CLUSTER_KEYCLOAK_BASE
@@ -93,9 +95,16 @@ class KeycloakSetup(object):
         self.kc_master_admin_password = kc_master_admin_password or DEFAULT_KEYCLOAK_MASTER_ADMIN_PASSWORD
         self._kc_master_admin_client_cache = None
         self.customer_access_url = customer_access_url or DEFAULT_CLUSTER_KEYCLOAK_BASE
+        self.clients_to_cleanup = clients_to_cleanup or []
+        self.secrets_to_cleanup = secrets_to_cleanup or []
+        self._k8s_corev1_cache = None
 
     def run(self):
         self._setup_keycloak()
+
+    def run_post_clients(self):
+        self._cleanup_clients()
+        self._cleanup_secrets()
 
     def reset_keycloak_master_admin_session(self):
         LOGGER.info("Resetting Keycloak master admin session.")
@@ -130,6 +139,13 @@ class KeycloakSetup(object):
 
         self._kc_master_admin_client_cache = client
         return self._kc_master_admin_client_cache
+
+    @property
+    def _k8s_corev1(self):
+        if self._k8s_corev1_cache:
+            return self._k8s_corev1_cache
+        self._k8s_corev1_cache = kubernetes.client.CoreV1Api()
+        return self._k8s_corev1_cache
 
     def _setup_keycloak(self):
         try:
@@ -189,6 +205,66 @@ class KeycloakSetup(object):
         response = self.kc_master_admin_client.post(url, json=request_data)
         if response.status_code not in [200, 201, 409]:
             response.raise_for_status()
+
+    def calc_client_url(self, client_id):
+        LOGGER.info("Fetching %r client URL from keycloak...", client_id)
+
+        query_url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/clients'
+        query_params = {'clientId': client_id}
+        response = self.kc_master_admin_client.get(query_url, params=query_params)
+        response.raise_for_status()
+
+        response_data = response.json()
+        if not response_data:
+            LOGGER.info("Client %r not found.", client_id)
+            return None
+
+        kc_client = response_data[0]
+
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/clients/{kc_client["id"]}'
+        LOGGER.info('Client %r has URL %r.', client_id, url)
+        return url
+
+    def _cleanup_clients(self):
+        for client_id in self.clients_to_cleanup:
+            self._cleanup_client(client_id)
+
+    def _cleanup_client(self, client_id):
+        LOGGER.info("Cleaning up client %r...", client_id)
+        client_url = self.calc_client_url(client_id)
+        if not client_url:
+            LOGGER.info("Client %r already doesn't exist.", client_id)
+            return
+
+        response = self.kc_master_admin_client.delete(client_url)
+        if response.status_code != 204:
+            LOGGER.warning(
+                "Failed to delete client %r using %r. Ignoring this error."
+                " Response=%s", client_id, client_url, response)
+            return
+        LOGGER.info("Client %r deleted.", client_id)
+
+    def _cleanup_secrets(self):
+        for secret_spec in self.secrets_to_cleanup:
+            self._cleanup_secret(secret_spec['name'], secret_spec['namespaces'])
+
+    def _cleanup_secret(self, secret_name, namespaces):
+        for ns in namespaces:
+            self._delete_secret(secret_name, ns)
+
+    def _delete_secret(self, secret_name, namespace):
+        LOGGER.info('Deleting %r Secret in namespace %r...', secret_name, namespace)
+        try:
+            self._k8s_corev1.delete_namespaced_secret(secret_name, namespace)
+            LOGGER.info("Deleted the %r secret from namespace %r.", secret_name, namespace)
+        except kubernetes.client.rest.ApiException as e:
+            if e.status != 404:
+                LOGGER.error(
+                    'delete_namespaced_secret in namespace %s returned an '
+                    'unexpected result %s',
+                    namespace, e)
+                raise
+            LOGGER.info("The %r secret in namespace %r already doesn't exit.", secret_name, namespace)
 
 
 class KeycloakClient(object):
@@ -517,23 +593,9 @@ class KeycloakClient(object):
         else:
             response.raise_for_status()
 
-        # Get the keycloak URL for the client
-        LOGGER.info('Fetching %s client URL from keycloak...', self.id)
-
-        query_url = '{}/admin/realms/{}/clients?clientId={}'.format(
-            self.kas.keycloak_base, self.realm, self.id,
-        )
-
-        response = self.kas.kc_master_admin_client.get(query_url)
-        response.raise_for_status()
-
-        # Set the keycloak URL for the client, required
-        # to create k8s secrets or roles
-        self._url = '{}/admin/realms/{}/clients/{}'.format(self.kas.keycloak_base,
-                                                           self.realm,
-                                                           response.json()[0]['id'])
-
-        LOGGER.info('Client ({}), URL {}'.format(self.id, self._url))
+        self._url = self.kas.calc_client_url(self.id)
+        if not self._url:
+            raise Exception(f"Failed to fetch URL for client {self.id}!")
 
         # Create any required service account roles
         self.add_service_account_roles()
@@ -944,121 +1006,41 @@ def main():
 
     kc_master_admin_secrets = read_keycloak_master_admin_secrets()
 
+    gatekeeper_client_id = os.environ.get(
+        'KEYCLOAK_GATEKEEPER_CLIENT_ID', DEFAULT_GATEKEEPER_CLIENT_ID)
+    clients_to_cleanup = [
+        gatekeeper_client_id,
+    ]
+
+    gatekeeper_client_secret_name = os.environ.get(
+        'KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAME',
+        DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME)
+    gatekeeper_client_secret_namespaces_str = os.environ.get(
+        'KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES',
+        DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES)
+    gatekeeper_client_secret_namespaces = json.loads(gatekeeper_client_secret_namespaces_str)
+    secrets_to_cleanup = [
+        {
+            'name': gatekeeper_client_secret_name,
+            'namespaces': gatekeeper_client_secret_namespaces,
+        },
+    ]
+
     kas = KeycloakSetup(
         keycloak_base=keycloak_base,
         cluster_keycloak_base=cluster_keycloak_base,
         kc_master_admin_client_id=kc_master_admin_secrets['client_id'],
         kc_master_admin_username=kc_master_admin_secrets['user'],
         kc_master_admin_password=kc_master_admin_secrets['password'],
-        customer_access_url=customer_access_url)
+        customer_access_url=customer_access_url,
+        clients_to_cleanup=clients_to_cleanup,
+        secrets_to_cleanup=secrets_to_cleanup)
 
     # ---------------------------------------------------------------
     # Keycloak Client Definitions
     # ---------------------------------------------------------------
 
     clients = list()
-
-    # ---- Gatekeeper Client ----
-
-    gatekeeper_client = \
-        KeycloakClient(
-            kas,
-            kas.SHASTA_REALM_NAME,
-            os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_ID',
-                           DEFAULT_GATEKEEPER_CLIENT_ID),
-            os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAME',
-                           DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME),
-            [n for n in json.loads(
-                os.environ.get('KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES',
-                               DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES))]
-        )
-
-    clients.append(gatekeeper_client)
-
-    # Set core client attributes
-    gatekeeper_client.standard_flow_enabled = True
-    gatekeeper_client.service_accounts_enabled = True
-
-    # load and set redirect URIs
-    gatekeeper_redirect_uris = None
-    gatekeeper_proxied_hosts = os.environ.get('KEYCLOAK_GATEKEEPER_PROXIED_HOSTS')
-    if gatekeeper_proxied_hosts:
-        gatekeeper_proxied_hosts = json.loads(gatekeeper_proxied_hosts)
-        gatekeeper_redirect_uris = [
-            'https://{}/oauth/callback'.format(hostname)
-            for hostname in gatekeeper_proxied_hosts
-        ]
-
-    gatekeeper_client.set_req_attr('redirectUris',
-                                   gatekeeper_redirect_uris)
-
-    # add protocol mappers
-    gatekeeper_pm = [
-        # XXX Not sure which protocol mappers are necessary for gatekeeper client
-        {
-            'name': 'uid-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'uidNumber',
-                'claim.name': 'uidNumber',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'gid-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'gidNumber',
-                'claim.name': 'gidNumber',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'loginshell-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'loginShell',
-                'claim.name': 'loginShell',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': 'homedirectory-user-attribute-mapper',
-            'protocolMapper': 'oidc-usermodel-attribute-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'user.attribute': 'homeDirectory',
-                'claim.name': 'homeDirectory',
-                'id.token.claim': True,
-                'access.token.claim': False,
-                'userinfo.token.claim': True,
-            },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': True,
-                'access.token.claim': True,
-            },
-        },
-    ]
-
-    gatekeeper_client.set_req_attr('protocolMappers',
-                                   gatekeeper_pm)
-
-    # add discovery URL to secret
-    gatekeeper_client.set_k8s_secret_attr(
-        'discovery-url',
-        '{}/realms/{}'.format(customer_access_url, kas.SHASTA_REALM_NAME)
-    )
 
     # ---- Admin Client ----
 
@@ -1090,15 +1072,6 @@ def main():
             'consentRequired': False,
             'config': {
                 'role': 'shasta.admin',
-            },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
-                'access.token.claim': True,
             },
         },
     ]
@@ -1335,15 +1308,6 @@ def main():
                 'id.token.claim': True,
                 'access.token.claim': True,
             },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
-                'access.token.claim': True,
-            },
         },
     ]
 
@@ -1420,15 +1384,6 @@ def main():
                 'id.token.claim': True,
                 'access.token.claim': True,
             },
-        }, {
-            'name': '{}-aud-mapper'.format(gatekeeper_client.id),
-            'protocolMapper': 'oidc-audience-mapper',
-            'protocol': 'openid-connect',
-            'config': {
-                'included.client.audience': gatekeeper_client.id,
-                'id.token.claim': False,
-                'access.token.claim': True,
-            },
         },
     ]
 
@@ -1459,7 +1414,7 @@ def main():
                 else:  # assign admin and user roles to public clients
                     client.create_role('admin')
                     client.create_role('user')
-
+            kas.run_post_clients()
             break
         except requests.exceptions.HTTPError as e:
             if (e.response is not None) and (e.response.status_code == 401):
