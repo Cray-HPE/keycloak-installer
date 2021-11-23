@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0]
+### Removed
+- keycloak_setup: Now removes the `gatekeeper` Client and associated Secret.
+
 ## [1.0.0]
 ### Added
 - keycloak_setup: Now creates an `oauth2-proxy` Client and associated Secret
