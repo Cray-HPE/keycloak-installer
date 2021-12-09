@@ -1229,7 +1229,7 @@ def main():
         {"realm-management": ["view-clients", "view-realm", "view-users"]}
 
     # Create new client role(s).
-    system_nexus_client.client_roles = ['nx-admin']
+    system_nexus_client.client_roles = ['nx-admin', 'nx-anonymous']
 
     # ---- WLM Client ----
 
