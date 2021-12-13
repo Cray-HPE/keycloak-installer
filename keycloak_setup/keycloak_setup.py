@@ -194,13 +194,13 @@ class KeycloakSetup(object):
         request_data = {
             'realm': realm,
             'enabled': True,
-            'ssoSessionIdleTimeout': 31536000,
+            'ssoSessionIdleTimeout': 604800,
             # UAI and PALs have a use case where the token is used in a batch
             # script that winds up running whenever the job gets scheduled,
             # which may be days after it's submitted.
-            'ssoSessionMaxLifespan': 31536000,
-            'accessTokenLifespan': 31536000,
-            'accessTokenLifespanForImplicitFlow': 31536000,
+            'ssoSessionMaxLifespan': 604800,
+            'accessTokenLifespan': 604800,
+            'accessTokenLifespanForImplicitFlow': 604800,
         }
         response = self.kc_master_admin_client.post(url, json=request_data)
         if response.status_code not in [200, 201, 409]:
