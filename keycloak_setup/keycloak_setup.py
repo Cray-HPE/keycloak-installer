@@ -71,6 +71,8 @@ DEFAULT_WLM_CLIENT_ID = 'wlm-client'
 DEFAULT_WLM_CLIENT_SECRET_NAME = 'wlm-client-auth'
 DEFAULT_WLM_CLIENT_SECRET_NAMESPACES = json.dumps(['default'])
 
+DEFAULT_OIDC_CLIENT_ID = 'kubernetes-api-oidc-client'
+
 LOGGER = logging.getLogger('keycloak_setup')
 
 
@@ -215,7 +217,8 @@ class KeycloakSetup(object):
 
         query_url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/clients'
         query_params = {'clientId': client_id}
-        response = self.kc_master_admin_client.get(query_url, params=query_params)
+        response = self.kc_master_admin_client.get(
+            query_url, params=query_params)
         response.raise_for_status()
 
         response_data = response.json()
@@ -250,17 +253,20 @@ class KeycloakSetup(object):
 
     def _cleanup_secrets(self):
         for secret_spec in self.secrets_to_cleanup:
-            self._cleanup_secret(secret_spec['name'], secret_spec['namespaces'])
+            self._cleanup_secret(
+                secret_spec['name'], secret_spec['namespaces'])
 
     def _cleanup_secret(self, secret_name, namespaces):
         for ns in namespaces:
             self._delete_secret(secret_name, ns)
 
     def _delete_secret(self, secret_name, namespace):
-        LOGGER.info('Deleting %r Secret in namespace %r...', secret_name, namespace)
+        LOGGER.info('Deleting %r Secret in namespace %r...',
+                    secret_name, namespace)
         try:
             self._k8s_corev1.delete_namespaced_secret(secret_name, namespace)
-            LOGGER.info("Deleted the %r secret from namespace %r.", secret_name, namespace)
+            LOGGER.info("Deleted the %r secret from namespace %r.",
+                        secret_name, namespace)
         except kubernetes.client.rest.ApiException as e:
             if e.status != 404:
                 LOGGER.error(
@@ -268,7 +274,8 @@ class KeycloakSetup(object):
                     'unexpected result %s',
                     namespace, e)
                 raise
-            LOGGER.info("The %r secret in namespace %r already doesn't exit.", secret_name, namespace)
+            LOGGER.info(
+                "The %r secret in namespace %r already doesn't exit.", secret_name, namespace)
 
 
 class KeycloakClient(object):
@@ -285,6 +292,7 @@ class KeycloakClient(object):
     - direct_access_grants_enabled (default False)
     - service_accounts_enabled (default False)
     - public_client (default False)
+    - create_roles_for_public_client (default True)
     - authorization_services_enabled (default False)
 
     Noting there is no request validation (e.g., combination of
@@ -409,6 +417,7 @@ class KeycloakClient(object):
         self._direct_access_grants_enabled = False
         self._service_accounts_enabled = False
         self._public_client = False
+        self._create_roles_for_public_client = True
         self._authorization_services_enabled = False
 
         # Enables 'extended' keycloak client req attributes
@@ -512,6 +521,18 @@ class KeycloakClient(object):
             raise TypeError
         self._authorization_services_enabled = v
 
+    # createRolesForPublicClient
+
+    @property
+    def create_roles_for_public_client(self):
+        return self._create_roles_for_public_client
+
+    @create_roles_for_public_client.setter
+    def create_roles_for_public_client(self, v):
+        if not isinstance(v, bool):
+            raise TypeError
+        self._create_roles_for_public_client = v
+
     # publicClient
 
     @property
@@ -540,7 +561,8 @@ class KeycloakClient(object):
 
         for role in v:
             if not issubclass(type(role), (str)):
-                raise TypeError(f'Expecting a string for the client role {role!r}.')
+                raise TypeError(
+                    f'Expecting a string for the client role {role!r}.')
 
         self._client_roles = v
 
@@ -587,8 +609,10 @@ class KeycloakClient(object):
         config.update(self._kc_ext_attr)
 
         # Attempt to create the client
-        create_url = '{}/admin/realms/{}/clients'.format(self.kas.keycloak_base, self.realm)
-        response = self.kas.kc_master_admin_client.post(create_url, json=config)
+        create_url = '{}/admin/realms/{}/clients'.format(
+            self.kas.keycloak_base, self.realm)
+        response = self.kas.kc_master_admin_client.post(
+            create_url, json=config)
 
         if response.status_code == 201:
             LOGGER.info('Created client %s', self.id)
@@ -633,10 +657,12 @@ class KeycloakClient(object):
             secret_data['client-id'] = self.id
 
             if self._url is None:
-                raise ValueError("attempting to set role but client URL is not set.")
+                raise ValueError(
+                    "attempting to set role but client URL is not set.")
 
             LOGGER.info('Fetching %s secret...', self.id)
-            response = self.kas.kc_master_admin_client.get('{}/client-secret'.format(self._url))
+            response = self.kas.kc_master_admin_client.get(
+                '{}/client-secret'.format(self._url))
             response.raise_for_status()
 
             secret_data['client-secret'] = response.json()['value']
@@ -655,7 +681,8 @@ class KeycloakClient(object):
             raise ValueError("invalid role")
 
         if self._url is None:
-            raise ValueError("attempting to set role but client URL is not set.")
+            raise ValueError(
+                "attempting to set role but client URL is not set.")
 
         LOGGER.info('Creating %s role in %s client...', role, self._url)
 
@@ -677,7 +704,8 @@ class KeycloakClient(object):
         """Add any requested service account roles to the client.
         The operation is idempotent.
         """
-        LOGGER.info('Requested service account roles for client %s: %s', self._id, self._service_account_client_roles)
+        LOGGER.info('Requested service account roles for client %s: %s',
+                    self._id, self._service_account_client_roles)
 
         role_dict = self._service_account_client_roles
         if not role_dict:
@@ -705,7 +733,8 @@ class KeycloakClient(object):
 
             if username == client_user_name:
                 client_user_id = user['id']
-                LOGGER.info("Found the requetsed user %s with the ID: %s", username, user["id"])
+                LOGGER.info(
+                    "Found the requetsed user %s with the ID: %s", username, user["id"])
                 break
 
         # If we don't find the client user we can not go further in this process.  Log it and
@@ -743,7 +772,8 @@ class KeycloakClient(object):
             # Get the ID for each client role and assign to the service-account-${client} user by
             # ID (client_user_id determined above)
             client_role_list = []
-            LOGGER.info("The roles %s on the client %s were requested", requested_roles, client)
+            LOGGER.info("The roles %s on the client %s were requested",
+                        requested_roles, client)
             for client_role in requested_roles:
                 LOGGER.info("Getting the role ID for %s", client_role)
                 url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/clients/{client_id}/roles/{client_role}'
@@ -754,24 +784,28 @@ class KeycloakClient(object):
                 # Raise for HTTP errors (400-600) here.
                 # If the client_id or client_role is not found the repsonse will be 404.
                 if response.status_code == 404:
-                    LOGGER.error('Was not able to find the client role %s', client_role)
+                    LOGGER.error(
+                        'Was not able to find the client role %s', client_role)
                 response.raise_for_status()
 
                 client_role_id = response.json()['id']
-                LOGGER.info("The client role %s has a client_role_id=%s", client_role, client_role_id)
+                LOGGER.info("The client role %s has a client_role_id=%s",
+                            client_role, client_role_id)
                 client_role_entry = {
                     'id': client_role_id,
                     'name': client_role,
                     'clientRole': True
                 }
-                LOGGER.info("Preparing to add the client role %s", client_role_entry)
+                LOGGER.info("Preparing to add the client role %s",
+                            client_role_entry)
                 client_role_list.append(client_role_entry)
 
             # Post the client role list to the users endpoint
             # client_user_id == the user entry ID for this client's service account user
             # client_id == the client ID of the client owning any role(s) to be added to the service account user
             url = f'{self.kas.keycloak_base}/admin/realms/{self.realm}/users/{client_user_id}/role-mappings/clients/{client_id}'
-            response = self.kas.kc_master_admin_client.post(url, json=client_role_list)
+            response = self.kas.kc_master_admin_client.post(
+                url, json=client_role_list)
             LOGGER.info("Role mapping post %s reply was: %s", url, response)
 
             # Riase for HTTP errors (400-600) here.
@@ -821,6 +855,8 @@ def create_keycloak_client_from_spec(client_id, spec, kas, customer_access_url):
         spec.get('serviceAccountsEnabled', False))
     keycloak_client.authorization_services_enabled = (
         spec.get('authorizationServicesEnabled', False))
+    keycloak_client.create_roles_for_public_client = (
+        spec.get('createRolesForPublicClient', True))
 
     type = spec.get('type', 'confidential')
     if type == 'public':
@@ -841,7 +877,8 @@ def k8s_apply_secret(namespace, secret_name, secret_data, v1=None):
     if v1 is None:
         v1 = kubernetes.client.CoreV1Api()
 
-    secret_data_encoded = {k: base64.b64encode(bytes(v, 'utf-8')).decode("ascii") for k, v in list(secret_data.items())}
+    secret_data_encoded = {k: base64.b64encode(
+        bytes(v, 'utf-8')).decode("ascii") for k, v in list(secret_data.items())}
 
     # Check if existing secret is up-to-date
     existing_secret = k8s_get_secret(namespace, secret_name, v1=v1)
@@ -893,7 +930,8 @@ def k8s_apply_secret(namespace, secret_name, secret_data, v1=None):
 def k8s_get_secret(namespace, secret_name, v1=None):
     if v1 is None:
         v1 = kubernetes.client.CoreV1Api()
-    LOGGER.info('Fetching current %s Secret in namespace %s...', secret_name, namespace)
+    LOGGER.info('Fetching current %s Secret in namespace %s...',
+                secret_name, namespace)
     try:
         return v1.read_namespaced_secret(secret_name, namespace)
     except kubernetes.client.rest.ApiException as e:
@@ -913,7 +951,8 @@ def k8s_get_secret(namespace, secret_name, v1=None):
 def read_keycloak_master_admin_secrets(
         secret_dir='/mnt/keycloak-master-admin-auth-vol'):
     try:
-        with open('{}/client-id'.format(secret_dir)) as f:  # FIXME: document these requirements in README
+        # FIXME: document these requirements in README
+        with open('{}/client-id'.format(secret_dir)) as f:
             client_id = f.read()
         with open('{}/user'.format(secret_dir)) as f:
             user = f.read()
@@ -984,7 +1023,8 @@ def init_logging():
     log_level = logging.getLevelName(requested_log_level)
 
     if type(log_level) != int:
-        print(f'WARNING: Log level {requested_log_level} is not valid. Falling back to INFO')
+        print(
+            f'WARNING: Log level {requested_log_level} is not valid. Falling back to INFO')
         log_level = logging.INFO
     logging.basicConfig(level=log_level, format=log_format)
 
@@ -1022,7 +1062,8 @@ def main():
     gatekeeper_client_secret_namespaces_str = os.environ.get(
         'KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES',
         DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES)
-    gatekeeper_client_secret_namespaces = json.loads(gatekeeper_client_secret_namespaces_str)
+    gatekeeper_client_secret_namespaces = json.loads(
+        gatekeeper_client_secret_namespaces_str)
     secrets_to_cleanup = [
         {
             'name': gatekeeper_client_secret_name,
@@ -1089,6 +1130,59 @@ def main():
         '{}/realms/{}/protocol/openid-connect/token'.format(cluster_keycloak_base,
                                                             kas.SHASTA_REALM_NAME)
     )
+
+    # ---- OIDC Client ----
+
+    k8s_oidc_client = \
+        KeycloakClient(
+            kas,
+            kas.SHASTA_REALM_NAME,
+            os.environ.get('KEYCLOAK_OIDC_CLIENT_ID',
+                           DEFAULT_OIDC_CLIENT_ID),
+        )
+
+    clients.append(k8s_oidc_client)
+
+    # Set core client attributes
+    k8s_oidc_client.direct_access_grants_enabled = True
+    k8s_oidc_client.service_accounts_enabled = False
+    k8s_oidc_client.standard_flow_enabled = True
+    k8s_oidc_client.implicit_flow_enabled = False
+    k8s_oidc_client.direct_access_grants_enabled = True
+    k8s_oidc_client.public_client = True
+    k8s_oidc_client.create_roles_for_public_client = False
+
+    # add protocol mappers
+    k8s_oidc_pms = [
+        {
+            'name': 'kubernetes-api-oidc-group-mapper',
+            'protocol': 'openid-connect',
+            'protocolMapper': 'oidc-group-membership-mapper',
+            'consentRequired': False,
+            'config': {
+                'full.path': False,
+                'id.token.claim': True,
+                'access.token.claim': True,
+                'claim.name': 'groups',
+                'userinfo.token.claim': True,
+            },
+        },
+        {
+            'name': 'kubernetes-api-oidc-name-mapper',
+            'protocolMapper': 'oidc-usermodel-attribute-mapper',
+            'protocol': 'openid-connect',
+            'config': {
+                'user.attribute': 'username',
+                'claim.name': 'name',
+                'id.token.claim': True,
+                'access.token.claim': True,
+                'userinfo.token.claim': True,
+            },
+        },
+    ]
+
+    k8s_oidc_client.set_req_attr('protocolMappers',
+                                 k8s_oidc_pms)
 
     # ---- System Compute Client ----
 
@@ -1415,9 +1509,11 @@ def main():
                 client.create()
                 if not client.public_client:
                     client.create_k8s_secrets()
-                else:  # assign admin and user roles to public clients
-                    client.create_role('admin')
-                    client.create_role('user')
+                else:
+                    # assign admin and user roles to public clients (unless specified not to)
+                    if client.create_roles_for_public_client:
+                        client.create_role('admin')
+                        client.create_role('user')
             kas.run_post_clients()
             break
         except requests.exceptions.HTTPError as e:
