@@ -51,7 +51,7 @@ A Client called `shasta` is created in Keycloak. This client is public and is
 meant to be used when accessing the Cray services. This client has protocol
 mappers that make the uid and gid attributes for the user available to the
 microservice in the ID token and via the OAuth2 userinfo endpoint. The client
-also has 2 roles created: `admin` and `user`.
+also has 3 roles created: `admin`, `user` and `monitor-ro`.
 
 Note that there's also a `cray` public client that's the same as the `shasta`
 client. This client is being phased out in favor of the `shasta` client.

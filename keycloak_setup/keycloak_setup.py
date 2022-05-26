@@ -1510,10 +1510,11 @@ def main():
                 if not client.public_client:
                     client.create_k8s_secrets()
                 else:
-                    # assign admin and user roles to public clients (unless specified not to)
+                    # assign admin, user, and monitor-ro roles to public clients (unless specified not to)
                     if client.create_roles_for_public_client:
                         client.create_role('admin')
                         client.create_role('user')
+                        client.create_role('monitor-ro')
             kas.run_post_clients()
             break
         except requests.exceptions.HTTPError as e:
