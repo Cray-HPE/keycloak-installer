@@ -885,7 +885,7 @@ class TestKeycloakSetup(testtools.TestCase):
         client.create_role('monitor-ro')
 
         # verify overall call count
-        self.assertEqual(4, len(responses.calls))
+        self.assertEqual(5, len(responses.calls))
 
         # Verify calls to create roles
         exp_req_body = {'name': 'user'}
