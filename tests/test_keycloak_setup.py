@@ -882,6 +882,7 @@ class TestKeycloakSetup(testtools.TestCase):
         # Test role creation
         client.create_role('user')
         client.create_role('admin')
+        client.create_role('monitor-ro')
 
         # verify overall call count
         self.assertEqual(4, len(responses.calls))
@@ -891,6 +892,8 @@ class TestKeycloakSetup(testtools.TestCase):
         self.assertEqual(exp_req_body, json.loads(responses.calls[2].request.body))
         exp_req_body = {'name': 'admin'}
         self.assertEqual(exp_req_body, json.loads(responses.calls[3].request.body))
+        exp_req_body = {'name': 'monitor-ro'}
+        self.assertEqual(exp_req_body, json.loads(responses.calls[4].request.body))
 
     @responses.activate
     def test_create_role_already_exists(self):

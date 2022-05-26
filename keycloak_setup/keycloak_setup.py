@@ -293,6 +293,7 @@ class KeycloakClient(object):
     - service_accounts_enabled (default False)
     - public_client (default False)
     - create_roles_for_public_client (default True)
+    - create_monitor_read_only_role (default False)
     - authorization_services_enabled (default False)
 
     Noting there is no request validation (e.g., combination of
@@ -418,6 +419,7 @@ class KeycloakClient(object):
         self._service_accounts_enabled = False
         self._public_client = False
         self._create_roles_for_public_client = True
+        self._create_monitor_read_only_role = False
         self._authorization_services_enabled = False
 
         # Enables 'extended' keycloak client req attributes
@@ -532,6 +534,18 @@ class KeycloakClient(object):
         if not isinstance(v, bool):
             raise TypeError
         self._create_roles_for_public_client = v
+
+    # createMonitorReadOnlyRole
+
+    @property
+    def create_monitor_read_only_role(self):
+        return self._create_monitor_read_only_role
+
+    @create_monitor_read_only_role.setter
+    def create_monitor_read_only_role(self, v):
+        if not isinstance(v, bool):
+            raise TypeError
+        self._create_monitor_read_only_role = v
 
     # publicClient
 
@@ -857,6 +871,8 @@ def create_keycloak_client_from_spec(client_id, spec, kas, customer_access_url):
         spec.get('authorizationServicesEnabled', False))
     keycloak_client.create_roles_for_public_client = (
         spec.get('createRolesForPublicClient', True))
+    keycloak_client.create_monitor_read_only_role = (
+        spec.get('createMonitorReadOnlyRole', False))
 
     type = spec.get('type', 'confidential')
     if type == 'public':
@@ -1151,6 +1167,7 @@ def main():
     k8s_oidc_client.direct_access_grants_enabled = True
     k8s_oidc_client.public_client = True
     k8s_oidc_client.create_roles_for_public_client = False
+    k8s_oidc_client.create_monitor_read_only_role = False
 
     # add protocol mappers
     k8s_oidc_pms = [
@@ -1421,6 +1438,7 @@ def main():
 
     public_client.public_client = True
     public_client.direct_access_grants_enabled = True
+    public_client.create_monitor_read_only_role = True
 
     clients.append(public_client)
 
@@ -1510,10 +1528,12 @@ def main():
                 if not client.public_client:
                     client.create_k8s_secrets()
                 else:
-                    # assign admin and user roles to public clients (unless specified not to)
+                    # assign admin, user, and monitor-ro roles to public clients (unless specified not to)
                     if client.create_roles_for_public_client:
                         client.create_role('admin')
                         client.create_role('user')
+                    if client.create_monitor_read_only_role:
+                        client.create_role('monitor-ro')
             kas.run_post_clients()
             break
         except requests.exceptions.HTTPError as e:
