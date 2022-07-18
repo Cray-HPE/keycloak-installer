@@ -1201,6 +1201,13 @@ def main():
     k8s_oidc_client.set_req_attr('protocolMappers',
                                  k8s_oidc_pms)
 
+    k8s_oidc_client_attrs = {
+        "access.token.lifespan": "14400",
+    }
+
+    k8s_oidc_client.set_req_attr('attributes',
+                                 k8s_oidc_client_attrs)
+
     # ---- System Compute Client ----
 
     system_compute_client = \
