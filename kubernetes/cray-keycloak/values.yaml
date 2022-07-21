@@ -150,6 +150,7 @@ keycloak:
     - "services-gateway"
     - "customer-admin-gateway"
     - "customer-user-gateway"
+    - "hmn-gateway"
 
   test:
     image:
