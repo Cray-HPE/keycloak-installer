@@ -248,6 +248,7 @@ class KeycloakLocalize(object):
         self.local_groups = local_groups
 
         self.fetch_users_page_size = 50
+        self.total_keycloak_users = 0
 
         self.user_export_storage_access_key = user_export_storage_access_key
         self.user_export_storage_secret_key = user_export_storage_secret_key
@@ -778,8 +779,11 @@ class KeycloakLocalize(object):
     def _fetch_users(self):
         LOGGER.info("Fetching all users from Keycloak to build the passwd file...")
 
+        self._fetch_total_users()
+
         passwd_fmts = []
         first = 0
+        found_users = 0
 
         while True:
             users = self._fetch_users_page(first)
@@ -788,7 +792,15 @@ class KeycloakLocalize(object):
                 if passwd_fmt:
                     passwd_fmts.append(passwd_fmt)
 
-            if len(users) < self.fetch_users_page_size:
+            found_users = found_users + len(users)
+
+            LOGGER.info(
+                "Found a total %s users out of %s",
+                found_users,
+                self.total_keycloak_users
+            )
+
+            if int(found_users) == int(self.total_keycloak_users) or int(found_users) == 0:
                 break
 
             first = first + self.fetch_users_page_size
@@ -823,6 +835,16 @@ class KeycloakLocalize(object):
         if users:
             LOGGER.info("first: %r -> last: %r", users[0]['username'], users[-1]['username'])
         return users
+
+    def _fetch_total_users(self):
+        LOGGER.info(
+            "Fetching total users from Keycloak")
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/users/count'
+        response = self._kc_master_admin_client.get(url)
+        response.raise_for_status()
+        total_users = response.text
+        LOGGER.info("Got %s users", total_users)
+        self.total_keycloak_users = total_users
 
     def _format_user_passwd_entry(self, user):
         if 'attributes' not in user:
