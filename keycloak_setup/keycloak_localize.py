@@ -800,7 +800,7 @@ class KeycloakLocalize(object):
                 self.total_keycloak_users
             )
 
-            if found_users == self.total_keycloak_users:
+            if int(found_users) == int(self.total_keycloak_users) or int(found_users) == 0:
                 break
 
             first = first + self.fetch_users_page_size
