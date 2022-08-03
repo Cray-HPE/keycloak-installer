@@ -1192,6 +1192,10 @@ class TestKeycloakLocalize(testtools.TestCase):
             keycloak_localize.UnrecoverableError, kl._trigger_full_user_sync)
 
     def test_fetch_users_once(self):
+        ftu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_total_users')).mock
+        ftu_mock.return_value = 0
+
         fup_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_localize.KeycloakLocalize, '_fetch_users_page')).mock
         fup_mock.return_value = [mock.sentinel.user, ]
@@ -1210,6 +1214,7 @@ class TestKeycloakLocalize(testtools.TestCase):
             user_export_storage_bucket=mock.sentinel.bucket,
             user_export_storage_passwd_object=mock.sentinel.passwd,
         )
+        kl.total_keycloak_users = 1
         kl._fetch_users()
 
         fup_mock.assert_called_once_with(0)
@@ -1230,6 +1235,10 @@ class TestKeycloakLocalize(testtools.TestCase):
         cpc_mock.assert_called_once_with(exp_result)
 
     def test_fetch_users_multi_pages(self):
+        ftu_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_localize.KeycloakLocalize, '_fetch_total_users')).mock
+        ftu_mock.return_value = 0
+
         fup_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_localize.KeycloakLocalize, '_fetch_users_page')).mock
         page1 = [mock.sentinel.user1, mock.sentinel.user2, mock.sentinel.user3]
@@ -1257,6 +1266,7 @@ class TestKeycloakLocalize(testtools.TestCase):
             user_export_storage_passwd_object=mock.sentinel.passwd,
         )
         kl.fetch_users_page_size = len(page1)
+        kl.total_keycloak_users = len(page1) + len(page2)
         kl._fetch_users()
 
         fup_mock.assert_has_calls([mock.call(0), mock.call(3)])

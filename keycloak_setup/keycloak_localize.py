@@ -779,10 +779,11 @@ class KeycloakLocalize(object):
     def _fetch_users(self):
         LOGGER.info("Fetching all users from Keycloak to build the passwd file...")
 
-        self._fetch_total_users(self)
+        self._fetch_total_users()
 
         passwd_fmts = []
         first = 0
+        found_users = 0
 
         while True:
             users = self._fetch_users_page(first)
@@ -791,7 +792,9 @@ class KeycloakLocalize(object):
                 if passwd_fmt:
                     passwd_fmts.append(passwd_fmt)
 
-            if len(passwd_fmts) == self.total_keycloak_users:
+            found_users = found_users + len(users)
+
+            if found_users == self.total_keycloak_users:
                 break
 
             first = first + self.fetch_users_page_size
