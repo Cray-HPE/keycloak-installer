@@ -833,7 +833,7 @@ class KeycloakLocalize(object):
     def _fetch_total_users(self):
         LOGGER.info(
             "Fetching total users from Keycloak")
-        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/users'
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/users/count'
         response = self._kc_master_admin_client.get(url)
         response.raise_for_status()
         total_users = response.text
