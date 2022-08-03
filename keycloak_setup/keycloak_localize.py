@@ -794,6 +794,12 @@ class KeycloakLocalize(object):
 
             found_users = found_users + len(users)
 
+            LOGGER.info(
+                "Found a total %s users out of %s",
+                found_users,
+                self.total_keycloak_users
+            )
+
             if found_users == self.total_keycloak_users:
                 break
 
