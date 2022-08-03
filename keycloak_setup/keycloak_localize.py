@@ -836,7 +836,7 @@ class KeycloakLocalize(object):
         url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/users'
         response = self._kc_master_admin_client.get(url)
         response.raise_for_status()
-        total_users = response.text()
+        total_users = response.text
         LOGGER.info("Got %s users", total_users)
         self.total_keycloak_users = total_users
 
