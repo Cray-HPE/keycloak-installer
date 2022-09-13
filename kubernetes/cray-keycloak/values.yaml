@@ -294,7 +294,7 @@ postgresDbBackup:
   enabled: true
   image:
     repository: artifactory.algol60.net/csm-docker/stable/cray-postgres-db-backup
-    tag: 0.2.0
+    tag: 0.2.3
     pullPolicy: IfNotPresent
 
   storageBucket: postgres-backup
