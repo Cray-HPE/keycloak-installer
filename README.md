@@ -13,7 +13,7 @@ version of the image being pulled.
 
 ### Docker Image
 
-Updating the docker image will require change to the base files as well as
+Updating the docker image will require a change to the base files as well as
 an update to the .version file. The .version file updates the app-version of the charts,
 which is the docker image tag pulled by the charts. To ensure the change of the app-version
 is progressed, the chart version also needs to be updated, and released. Only one of the two
