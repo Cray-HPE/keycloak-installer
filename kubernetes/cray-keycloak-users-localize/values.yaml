@@ -23,7 +23,7 @@
 #
 image:
   repository: artifactory.algol60.net/csm-docker/stable/cray-keycloak-setup
-  # tag defaults to chart appVersion
+  # tag defaults to chart appVersion which is set by jenkins during build based on .version file
   pullPolicy: Always
 
 # Determines how many times the Job will retry running the localize pod.
