@@ -1,6 +1,26 @@
 This repository contains Helm charts to deploy and set up Keycloak for Shasta
 systems.
 
+## Updating Charts and Docker Image
+
+### Charts
+
+If there is an update to a chart and not the keycloak-setup image, the .version
+file does not need to update. The .version file changes the app-version of the charts.
+The app-version of the charts is the tag of the docker image pulled. To update the chart,
+just change the chart version and make the changes to the chart. This will not change the
+version of the image being pulled.
+
+### Docker Image
+
+Updating the docker image will require a change to the base files as well as
+an update to the .version file. The .version file updates the app-version of the charts,
+which is the docker image tag pulled by the charts. To ensure the change of the app-version
+is progressed, the chart version also needs to be updated, and released. Only one of the two
+charts needs a version change to progress the image version used in both charts. This is because
+when the charts are built they have the same app-version. If there needs to be a different image
+version for one chart, then the image tag for keycloak-setup needs to be pinned.
+
 ## keycloak-setup docker image
 
 ### keycloak_setup.py
