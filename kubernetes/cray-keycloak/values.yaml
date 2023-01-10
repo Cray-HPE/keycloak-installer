@@ -144,7 +144,7 @@ keycloak:
       tag: 1.19.15
       pullPolicy: IfNotPresent
 
-# A list of gateways that keycloak is exposed
+  # A list of gateways that keycloak is exposed
   ingress:
     gateways:
     - "services-gateway"
@@ -155,141 +155,187 @@ keycloak:
   test:
     image:
       repository: artifactory.algol60.net/csm-docker/stable/docker.io/unguiculus/docker-python3-phantomjs-selenium
+  
+  replicas: 3
+  podAnnotations:
+    # port 7600 is used for jgroups (Java clustering) traffic
+    # it's UDP and non-HTTP so need to prevent istio from wrapping.
+    traffic.sidecar.istio.io/excludeInboundPorts: '7600'
+    traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
+  image:
+    repository: docker.io/jboss/keycloak
+    tag: 16.1.1
+  # NOTE: When upgrading this should be able to be removed. -XX:+UseContainerSupport is the default in chart version 7.3.0
+  extraEnv: |
+    - name: JAVA_OPTS
+      value: -XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true
+    - name: PROXY_ADDRESS_FORWARDING
+      value: "true"
+    - name: KEYCLOAK_USER_FILE
+      value: /secrets/keycloak-creds/user
+    - name: KEYCLOAK_PASSWORD_FILE
+      value: /secrets/keycloak-creds/password
 
-  keycloak:
-    replicas: 3
-    podAnnotations:
-      # port 7600 is used for jgroups (Java clustering) traffic
-      # it's UDP and non-HTTP so need to prevent istio from wrapping.
-      traffic.sidecar.istio.io/excludeInboundPorts: '7600'
-      traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
-    image:
-      repository: artifactory.algol60.net/csm-docker/stable/docker.io/jboss/keycloak
-      tag: 9.0.0
-    # NOTE: When upgrading this should be able to be removed. -XX:+UseContainerSupport is the default in chart version 7.3.0
-    extraEnv: |
-      - name: JAVA_OPTS
-        value: -XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true
-      - name: PROXY_ADDRESS_FORWARDING
-        value: "true"
-    basepath: keycloak
-    username: admin
-    existingSecret: keycloak-master-admin-auth
-    serviceAccount:
-      name: jobs-watcher
-    # When nodeAffinity isn't needed anymore, note that the podAntiAffinity is
-    # copied from the defaults so `affinity` can be removed.
-    priorityClassName: csm-high-priority-service
-    affinity: |
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                {{- include "keycloak.selectorLabels" . | nindent 10 }}
-              matchExpressions:
-                - key: role
-                  operator: NotIn
-                  values:
-                    - test
-            topologyKey: kubernetes.io/hostname
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: no_external_access
-              operator: NotIn
-              values:
-              - "True"
-    # cray-postgres-operator provides the secret, etc.
-    persistence:
-      dbVendor: postgres
-      dbName: service_db
-      dbHost: keycloak-postgres
-      existingSecret: service-account.keycloak-postgres.credentials
-      existingSecretPasswordKey: password
-      existingSecretUsernameKey: username
-    # This is copied from cray-services
-    extraInitContainers: |
-      - name: keycloak-wait-for-postgres
-        image: {{ .Values.kubectl.image.repository }}:{{ .Values.kubectl.image.tag }}
-        imagePullPolicy: {{ .Values.kubectl.image.pullPolicy }}
-        command:
-        - /bin/sh
-        - -c
-        - |
-          while true; do
-            JOB_CONDITION="$(kubectl get jobs -n services -l app.kubernetes.io/name=keycloak-wait-for-postgres -o jsonpath='{.items[0].status.conditions[0].type}')"
-            JOB_CONDITION_RC=$?
-            if [ $JOB_CONDITION_RC -eq 0 ]; then
-              if [ "$JOB_CONDITION" == 'Complete' ]; then
-                echo "Completed"
-                break
-              fi
-              echo "Waiting for the keycloak-wait-for-postgres job in the services namespace to complete, current condition is $(kubectl get jobs -n services -l app.kubernetes.io/name=keycloak-wait-for-postgres -o jsonpath='{.items[0].status}')"
-              sleep 3
-            elif [ $JOB_CONDITION_RC -ne 1 ]; then
-              echo "'kubectl get jobs' failed with exit code $JOB_CONDITION_RC , failing"
-              exit 1
-            else
-              echo "'kubectl get jobs' failed with exit code $JOB_CONDITION_RC , will retry"
-              sleep 3
+  serviceAccount:
+    create: false
+    name: jobs-watcher
+  # When nodeAffinity isn't needed anymore, note that the podAntiAffinity is
+  # copied from the defaults so `affinity` can be removed.
+  priorityClassName: csm-high-priority-service
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "keycloak.selectorLabels" . | nindent 10 }}
+            matchExpressions:
+              - key: role
+                operator: NotIn
+                values:
+                  - test
+          topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: no_external_access
+            operator: NotIn
+            values:
+            - "True"
+  # cray-postgres-operator provides the secret, etc.
+  persistence:
+    dbVendor: postgres
+    dbName: service_db
+    dbHost: keycloak-postgres
+    existingSecret: service-account.keycloak-postgres.credentials
+    existingSecretPasswordKey: password
+    existingSecretUsernameKey: username
+  # This is copied from cray-services
+  extraInitContainers: |
+    - name: keycloak-wait-for-postgres
+      image: {{ .Values.kubectl.image.repository }}:{{ .Values.kubectl.image.tag }}
+      imagePullPolicy: {{ .Values.kubectl.image.pullPolicy }}
+      command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          JOB_CONDITION="$(kubectl get jobs -n services -l app.kubernetes.io/name=keycloak-wait-for-postgres -o jsonpath='{.items[0].status.conditions[0].type}')"
+          JOB_CONDITION_RC=$?
+          if [ $JOB_CONDITION_RC -eq 0 ]; then
+            if [ "$JOB_CONDITION" == 'Complete' ]; then
+              echo "Completed"
+              break
             fi
-          done
-        resources:
-          limits:
-            cpu: 500m
-            memory: 100Mi
-          requests:
-            cpu: 30m
-            memory: 20Mi
-    # We've seen keycloak terminated with the default 5sec timeout, so increase to 30sec
-    livenessProbe: |
-      httpGet:
-        path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/
-        port: http
-      initialDelaySeconds: 300
-      timeoutSeconds: 30
-    readinessProbe: |
-      httpGet:
-        path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/realms/master
-        port: http
-      initialDelaySeconds: 30
-      timeoutSeconds: 30
-    resources:
-      requests:
-        memory: "1500Mi"
-        cpu: "1000m"
-      limits:
-        memory: "5000Mi"
-        cpu: "4000m"
-    cli:
-      # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
-      custom: |
-        /subsystem=keycloak-server/spi=truststore:add()
-        /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
-        /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
-        /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
-        /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
-        /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
-    # Contains the CA cert, it's created outside of this chart and may be updated by localization.
-    extraVolumes: |
-      - name: certs-volume
-        secret:
-          secretName: keycloak-certs
-      - name: rsa-plugin-plugin-volume
-        configMap:
-          name: cray-keycloak-rsa-plugin
-    extraVolumeMounts: |
-      - mountPath: /certs
-        name: certs-volume
-        readOnly: true
-      - name: rsa-plugin-plugin-volume
-        mountPath: /mnt/rsa-plugin
-        readOnly: true
-    startupScripts:
-      rsa_plugin_cli: "cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
-      rsa_plugin_plugin: "cp /mnt/rsa-plugin/RSA-Plugin-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
-      rsa_plugin_theme: "cp /mnt/rsa-plugin/RSAAuthenticator.ftl /opt/jboss/keycloak/themes/base/login/"
+            echo "Waiting for the keycloak-wait-for-postgres job in the services namespace to complete, current condition is $(kubectl get jobs -n services -l app.kubernetes.io/name=keycloak-wait-for-postgres -o jsonpath='{.items[0].status}')"
+            sleep 3
+          elif [ $JOB_CONDITION_RC -ne 1 ]; then
+            echo "'kubectl get jobs' failed with exit code $JOB_CONDITION_RC , failing"
+            exit 1
+          else
+            echo "'kubectl get jobs' failed with exit code $JOB_CONDITION_RC , will retry"
+            sleep 3
+          fi
+        done
+      resources:
+        limits:
+          cpu: 500m
+          memory: 100Mi
+        requests:
+          cpu: 30m
+          memory: 20Mi
+
+  contextPath: keycloak
+  
+  livenessProbe: |
+    httpGet:
+      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
+      port: http
+    initialDelaySeconds: 0
+    timeoutSeconds: 5
+  
+  readinessProbe: |
+    httpGet:
+      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/realms/master
+      port: http
+    initialDelaySeconds: 60
+    timeoutSeconds: 1
+  
+  startupProbe: |
+    httpGet:
+      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
+      port: http
+    initialDelaySeconds: 60
+    timeoutSeconds: 1
+    failureThreshold: 60
+    periodSeconds: 5
+
+  
+  # We've seen keycloak terminated with the default 5sec timeout, so increase to 30sec
+  #livenessProbe: |
+  #  httpGet:
+  #    path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/
+  #    port: http
+  #  initialDelaySeconds: 300
+  #  timeoutSeconds: 30
+  #readinessProbe: |
+  #  httpGet:
+  #    path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/realms/master
+  #    port: http
+  #  initialDelaySeconds: 30
+  #  timeoutSeconds: 30
+  resources:
+    requests:
+      memory: "1500Mi"
+      cpu: "1000m"
+    limits:
+      memory: "5000Mi"
+      cpu: "4000m"
+  cli:
+    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
+    custom: |
+      /subsystem=keycloak-server/spi=truststore:add()
+      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
+  # Contains the CA cert, it's created outside of this chart and may be updated by localization.
+  extraVolumes: |
+    - name: certs-volume
+      secret:
+        secretName: keycloak-certs
+    - name: rsa-plugin-plugin-volume
+      configMap:
+        name: cray-keycloak-rsa-plugin
+    - name: keycloak-creds
+      secret:
+        secretName: keycloak-master-admin-auth
+  extraVolumeMounts: |
+    - mountPath: /certs
+      name: certs-volume
+      readOnly: true
+    - name: rsa-plugin-plugin-volume
+      mountPath: /mnt/rsa-plugin
+      readOnly: true
+    - name: keycloak-creds
+      mountPath: /secrets/keycloak-creds
+      readOnly: true
+  startupScripts:
+    rsa_plugin_cli: "cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
+    rsa_plugin_plugin: "cp /mnt/rsa-plugin/RSA-Plugin-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
+    rsa_plugin_theme: "cp /mnt/rsa-plugin/RSAAuthenticator.ftl /opt/jboss/keycloak/themes/base/login/"
+    contextPath.cli: |
+      embed-server --server-config=standalone-ha.xml --std-out=echo
+      batch
+      {{- if ne .Values.contextPath "auth" }}
+      /subsystem=keycloak-server/:write-attribute(name=web-context,value={{ if eq .Values.contextPath "" }}/{{ else }}{{ .Values.contextPath }}{{ end }})
+      {{- if eq .Values.contextPath "" }}
+      /subsystem=undertow/server=default-server/host=default-host:write-attribute(name=default-web-module,value=keycloak-server.war)
+      {{- end }}
+      {{- end }}
+      run-batch
+      stop-embedded-server
 
 postgresDbBackup:
   enabled: true

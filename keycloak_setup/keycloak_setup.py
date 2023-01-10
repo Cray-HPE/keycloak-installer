@@ -679,6 +679,12 @@ class KeycloakClient(object):
                 '{}/client-secret'.format(self._url))
             response.raise_for_status()
 
+            if response.json().get('value') is None:
+                LOGGER.info('Client secret is not set yet, setting...')
+                response = self.kas.kc_master_admin_client.post(
+                    '{}/client-secret'.format(self._url))
+                response.raise_for_status()
+
             secret_data['client-secret'] = response.json()['value']
 
             for namespace in self._k8s_secret_namespaces:
