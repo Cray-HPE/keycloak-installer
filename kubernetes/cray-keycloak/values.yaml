@@ -175,6 +175,18 @@ keycloak:
       value: /secrets/keycloak-creds/user
     - name: KEYCLOAK_PASSWORD_FILE
       value: /secrets/keycloak-creds/password
+    - name: DB_VENDOR
+      value: postgres
+    - name: DB_ADDR
+      value: keycloak-postgres
+    - name: DB_PORT
+      value: "5432"
+    - name: DB_DATABASE
+      value: service_db
+    - name: DB_USER_FILE
+      value: /secrets/db-creds/username
+    - name: DB_PASSWORD_FILE
+      value: /secrets/db-creds/password
 
   serviceAccount:
     create: false
@@ -202,14 +214,9 @@ keycloak:
             operator: NotIn
             values:
             - "True"
-  # cray-postgres-operator provides the secret, etc.
-  persistence:
-    dbVendor: postgres
-    dbName: service_db
-    dbHost: keycloak-postgres
-    existingSecret: service-account.keycloak-postgres.credentials
-    existingSecretPasswordKey: password
-    existingSecretUsernameKey: username
+  postgresql:
+  # Disable PostgreSQL dependency
+    enabled: false
   # This is copied from cray-services
   extraInitContainers: |
     - name: keycloak-wait-for-postgres
@@ -297,6 +304,9 @@ keycloak:
     - name: keycloak-creds
       secret:
         secretName: keycloak-master-admin-auth
+    - name: db-creds
+      secret:
+        secretName: service-account.keycloak-postgres.credentials    
   extraVolumeMounts: |
     - mountPath: /certs
       name: certs-volume
@@ -306,6 +316,9 @@ keycloak:
       readOnly: true
     - name: keycloak-creds
       mountPath: /secrets/keycloak-creds
+      readOnly: true
+    - name: db-creds
+      mountPath: /secrets/db-creds
       readOnly: true
   startupScripts:
     rsa_plugin_cli: "cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
