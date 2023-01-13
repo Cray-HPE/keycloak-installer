@@ -306,7 +306,7 @@ keycloak:
         secretName: keycloak-master-admin-auth
     - name: db-creds
       secret:
-        secretName: service-account.keycloak-postgres.credentials    
+        secretName: service-account.keycloak-postgres.credentials
   extraVolumeMounts: |
     - mountPath: /certs
       name: certs-volume
