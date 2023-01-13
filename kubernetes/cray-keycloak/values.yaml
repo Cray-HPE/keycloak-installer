@@ -155,7 +155,7 @@ keycloak:
   test:
     image:
       repository: artifactory.algol60.net/csm-docker/stable/docker.io/unguiculus/docker-python3-phantomjs-selenium
-  
+
   replicas: 3
   podAnnotations:
     # port 7600 is used for jgroups (Java clustering) traffic
@@ -246,21 +246,21 @@ keycloak:
           memory: 20Mi
 
   contextPath: keycloak
-  
+
   livenessProbe: |
     httpGet:
       path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
       port: http
     initialDelaySeconds: 0
     timeoutSeconds: 5
-  
+
   readinessProbe: |
     httpGet:
       path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/realms/master
       port: http
     initialDelaySeconds: 60
     timeoutSeconds: 1
-  
+
   startupProbe: |
     httpGet:
       path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
@@ -270,20 +270,6 @@ keycloak:
     failureThreshold: 60
     periodSeconds: 5
 
-  
-  # We've seen keycloak terminated with the default 5sec timeout, so increase to 30sec
-  #livenessProbe: |
-  #  httpGet:
-  #    path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/
-  #    port: http
-  #  initialDelaySeconds: 300
-  #  timeoutSeconds: 30
-  #readinessProbe: |
-  #  httpGet:
-  #    path: {{ if ne .Values.keycloak.basepath "" }}/{{ .Values.keycloak.basepath }}{{ end }}/realms/master
-  #    port: http
-  #  initialDelaySeconds: 30
-  #  timeoutSeconds: 30
   resources:
     requests:
       memory: "1500Mi"
