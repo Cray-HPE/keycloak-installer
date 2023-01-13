@@ -163,7 +163,7 @@ keycloak:
     traffic.sidecar.istio.io/excludeInboundPorts: '7600'
     traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
   image:
-    repository: docker.io/jboss/keycloak
+    repository: artifactory.algol60.net/csm-docker/stable/docker.io/jboss/keycloak
     tag: 16.1.1
   # NOTE: When upgrading this should be able to be removed. -XX:+UseContainerSupport is the default in chart version 7.3.0
   extraEnv: |
