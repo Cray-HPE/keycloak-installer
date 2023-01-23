@@ -1,7 +1,7 @@
 #
 # MIT License
 #
-# (C) Copyright 2022 Hewlett Packard Enterprise Development LP
+# (C) Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 #
 apiVersion: v2
 name: cray-keycloak
-version: 3.6.1
+version: 4.0.0
 description: Deploys Keycloak for Shasta
 keywords:
 - keycloak
@@ -33,9 +33,10 @@ sources:
 - https://github.com/Cray-HPE/keycloak-installer
 dependencies:
 - name: keycloak
-  version: 7.2.0
+  version: 16.1.0
   repository: https://codecentric.github.io/helm-charts
 maintainers:
 - name: bklein
+- name: ndavidson-hpe
 annotations:
   artifacthub.io/license: MIT

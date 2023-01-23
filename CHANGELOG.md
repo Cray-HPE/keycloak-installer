@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.0]
+### Changed
+- Updated base chart to version 16.1.0.
+- Updated keycloak image to 16.1.1.
+- Changed logic for getting the client secret for each client from keycloak.
+- Addressed all issues related to upgrading base chart as well as keycloak image.
+
 ## [3.0.0]
 ### Removed
 - keycloak_setup: Now removes the `gatekeeper` Client and associated Secret.

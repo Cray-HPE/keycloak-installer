@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# (C) Copyright 2020-2022 Hewlett Packard Enterprise Development LP
+# (C) Copyright 2020-2023 Hewlett Packard Enterprise Development LP
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -678,6 +678,12 @@ class KeycloakClient(object):
             response = self.kas.kc_master_admin_client.get(
                 '{}/client-secret'.format(self._url))
             response.raise_for_status()
+
+            if response.json().get('value') is None:
+                LOGGER.info('Client secret is not set yet, setting...')
+                response = self.kas.kc_master_admin_client.post(
+                    '{}/client-secret'.format(self._url))
+                response.raise_for_status()
 
             secret_data['client-secret'] = response.json()['value']
 
