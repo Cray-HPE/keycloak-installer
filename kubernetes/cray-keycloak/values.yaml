@@ -20,12 +20,24 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
+
+# Needed for cleanup-old-cronjob.yaml job
+kubectl:
+  image:
+    repository: artifactory.algol60.net/csm-docker/stable/docker-kubectl
+    tag: 1.19.15
+
 sqlCluster:
   image:
     repository: artifactory.algol60.net/csm-docker/stable/docker.io/library/postgres
     tag: 13.2-alpine
     pullPolicy: IfNotPresent
+
+  # The logical backup configurations are set in the operatorconfiguration and cannot be overridden per cluster;
+  # the cronjob schedule is an exception.
+  logicalBackup:
+    # cronjob schedule once per day at 2:10AM
+    schedule: "10 2 * * *"
 
 # A list of sealedSecrets passed in to be deployed.
 sealedSecrets: []
@@ -335,55 +347,3 @@ keycloak:
       {{- end }}
       run-batch
       stop-embedded-server
-
-postgresDbBackup:
-  enabled: true
-  image:
-    repository: artifactory.algol60.net/csm-docker/stable/cray-postgres-db-backup
-    tag: 0.2.3
-    pullPolicy: IfNotPresent
-
-  storageBucket: postgres-backup
-  storageSecret: postgres-backup-s3-credentials
-
-  schedule: "10 2 * * *"  # Once per day at 2:10AM
-
-  imagePullSecrets: []
-  nameOverride: ""
-  fullnameOverride: ""
-
-  serviceAccount:
-    # Specifies whether a service account should be created
-    create: true
-    # Annotations to add to the service account
-    annotations: {}
-    # The name of the service account to use.
-    # If not set and create is true, a name is generated using the fullname template
-    name: ""
-
-  podAnnotations: {}
-
-  podSecurityContext: {}
-    # fsGroup: 2000
-
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
-
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 500Mi
-    requests:
-      cpu: 100m
-      memory: 200Mi
-
-  nodeSelector: {}
-
-  tolerations: []
-
-  affinity: {}
