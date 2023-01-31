@@ -67,8 +67,10 @@ spec:
     service_account: []
   databases:
     service_db: service_account
+  enableLogicalBackup: true
+  logicalBackupSchedule: "{{ .Values.sqlCluster.logicalBackup.schedule }}"
   postgresql:
-    version: "11"
+    version: "14" # Needs to match version of spilo as defined in the cray-postgres-operator chart
   tls:
     secretName: "keycloak-postgres-tls"
 
