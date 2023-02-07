@@ -347,3 +347,15 @@ keycloak:
       {{- end }}
       run-batch
       stop-embedded-server
+    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
+    configureCerts.cli: |
+      embed-server --server-config=standalone-ha.xml --std-out=echo
+      batch
+      /subsystem=keycloak-server/spi=truststore:add()
+      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
+      run-batch
+      stop-embedded-server
