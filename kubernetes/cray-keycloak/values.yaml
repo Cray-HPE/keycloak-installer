@@ -284,15 +284,6 @@ keycloak:
     limits:
       memory: "5000Mi"
       cpu: "4000m"
-  cli:
-    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
-    custom: |
-      /subsystem=keycloak-server/spi=truststore:add()
-      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
   # Contains the CA cert, it's created outside of this chart and may be updated by localization.
   extraVolumes: |
     - name: certs-volume
@@ -333,6 +324,18 @@ keycloak:
       /subsystem=undertow/server=default-server/host=default-host:write-attribute(name=default-web-module,value=keycloak-server.war)
       {{- end }}
       {{- end }}
+      run-batch
+      stop-embedded-server
+    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
+    configureCerts.cli: |
+      embed-server --server-config=standalone-ha.xml --std-out=echo
+      batch
+      /subsystem=keycloak-server/spi=truststore:add()
+      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
+      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
       run-batch
       stop-embedded-server
 
