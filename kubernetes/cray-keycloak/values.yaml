@@ -175,30 +175,23 @@ keycloak:
     traffic.sidecar.istio.io/excludeInboundPorts: '7600'
     traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
   image:
-    repository: artifactory.algol60.net/csm-docker/stable/docker.io/jboss/keycloak
-    tag: 16.1.1
-  # NOTE: When upgrading this should be able to be removed. -XX:+UseContainerSupport is the default in chart version 7.3.0
+    repository: quay.io/keycloak/keycloak
+    tag: 20.0.3
   extraEnv: |
     - name: JAVA_OPTS
       value: -XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true
     - name: PROXY_ADDRESS_FORWARDING
       value: "true"
-    - name: KEYCLOAK_USER_FILE
-      value: /secrets/keycloak-creds/user
-    - name: KEYCLOAK_PASSWORD_FILE
-      value: /secrets/keycloak-creds/password
-    - name: DB_VENDOR
-      value: postgres
-    - name: DB_ADDR
-      value: keycloak-postgres
-    - name: DB_PORT
-      value: "5432"
-    - name: DB_DATABASE
-      value: service_db
-    - name: DB_USER_FILE
-      value: /secrets/db-creds/username
-    - name: DB_PASSWORD_FILE
-      value: /secrets/db-creds/password
+    - name: KEYCLOAK_ADMIN
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-master-admin-auth
+          key: user
+    - name: KEYCLOAK_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-master-admin-auth
+          key: password
 
   serviceAccount:
     create: false
@@ -226,9 +219,18 @@ keycloak:
             operator: NotIn
             values:
             - "True"
-  postgresql:
-  # Disable PostgreSQL dependency
+
+  dbchecker:
     enabled: false
+
+  database:
+    vendor: postgres
+    hostname: keycloak-postgres
+    port: 5432
+    database: service_db
+    username: service_account
+    existingSecret: service-account.keycloak-postgres.credentials
+
   # This is copied from cray-services
   extraInitContainers: |
     - name: keycloak-wait-for-postgres
@@ -264,30 +266,8 @@ keycloak:
           cpu: 30m
           memory: 20Mi
 
-  contextPath: keycloak
-
-  livenessProbe: |
-    httpGet:
-      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
-      port: http
-    initialDelaySeconds: 0
-    timeoutSeconds: 5
-
-  readinessProbe: |
-    httpGet:
-      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/realms/master
-      port: http
-    initialDelaySeconds: 60
-    timeoutSeconds: 1
-
-  startupProbe: |
-    httpGet:
-      path: {{ if ne .Values.contextPath "" }}/{{ .Values.contextPath }}{{ end }}/
-      port: http
-    initialDelaySeconds: 60
-    timeoutSeconds: 1
-    failureThreshold: 60
-    periodSeconds: 5
+  http:
+    relativePath: '/keycloak'
 
   resources:
     requests:
@@ -296,15 +276,6 @@ keycloak:
     limits:
       memory: "5000Mi"
       cpu: "4000m"
-  cli:
-    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
-    custom: |
-      /subsystem=keycloak-server/spi=truststore:add()
-      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
   # Contains the CA cert, it's created outside of this chart and may be updated by localization.
   extraVolumes: |
     - name: certs-volume
@@ -313,12 +284,6 @@ keycloak:
     - name: rsa-plugin-plugin-volume
       configMap:
         name: cray-keycloak-rsa-plugin
-    - name: keycloak-creds
-      secret:
-        secretName: keycloak-master-admin-auth
-    - name: db-creds
-      secret:
-        secretName: service-account.keycloak-postgres.credentials
   extraVolumeMounts: |
     - mountPath: /certs
       name: certs-volume
@@ -326,27 +291,10 @@ keycloak:
     - name: rsa-plugin-plugin-volume
       mountPath: /mnt/rsa-plugin
       readOnly: true
-    - name: keycloak-creds
-      mountPath: /secrets/keycloak-creds
-      readOnly: true
-    - name: db-creds
-      mountPath: /secrets/db-creds
-      readOnly: true
   startupScripts:
     rsa_plugin_cli: "cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
     rsa_plugin_plugin: "cp /mnt/rsa-plugin/RSA-Plugin-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
     rsa_plugin_theme: "cp /mnt/rsa-plugin/RSAAuthenticator.ftl /opt/jboss/keycloak/themes/base/login/"
-    contextPath.cli: |
-      embed-server --server-config=standalone-ha.xml --std-out=echo
-      batch
-      {{- if ne .Values.contextPath "auth" }}
-      /subsystem=keycloak-server/:write-attribute(name=web-context,value={{ if eq .Values.contextPath "" }}/{{ else }}{{ .Values.contextPath }}{{ end }})
-      {{- if eq .Values.contextPath "" }}
-      /subsystem=undertow/server=default-server/host=default-host:write-attribute(name=default-web-module,value=keycloak-server.war)
-      {{- end }}
-      {{- end }}
-      run-batch
-      stop-embedded-server
     # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
     configureCerts.cli: |
       embed-server --server-config=standalone-ha.xml --std-out=echo

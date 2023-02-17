@@ -23,7 +23,7 @@
 #
 apiVersion: v2
 name: cray-keycloak
-version: 4.1.1
+version: 5.0.0
 description: Deploys Keycloak for Shasta
 keywords:
 - keycloak
@@ -32,8 +32,8 @@ home: https://github.com/Cray-HPE/keycloak-installer
 sources:
 - https://github.com/Cray-HPE/keycloak-installer
 dependencies:
-- name: keycloak
-  version: 16.1.0
+- name: keycloakx
+  version: 2.1.1
   repository: https://codecentric.github.io/helm-charts
 maintainers:
 - name: bklein
