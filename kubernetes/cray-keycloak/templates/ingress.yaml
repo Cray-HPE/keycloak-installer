@@ -32,7 +32,7 @@ metadata:
 spec:
   hosts:
     - "*"
-  {{- with .Values.keycloak.ingress.gateways }}
+  {{- with .Values.keycloakx.ingress.gateways }}
   gateways:
     {{- toYaml . | nindent 4 }}
   {{- end }}
