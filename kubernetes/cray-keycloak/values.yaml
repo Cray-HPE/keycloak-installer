@@ -181,8 +181,8 @@ keycloakx:
     traffic.sidecar.istio.io/excludeInboundPorts: '7600'
     traffic.sidecar.istio.io/excludeOutboundPorts: '7600'
   image:
-    repository: quay.io/keycloak/keycloak
-    tag: 20.0.3
+    repository: artifactory.algol60.net/csm-docker/stable/quay.io/keycloak/keycloak
+    tag: 20.0.5
   command:
     - "/opt/keycloak/bin/kc.sh"
     - "start"
