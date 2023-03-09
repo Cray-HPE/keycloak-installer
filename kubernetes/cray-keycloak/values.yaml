@@ -193,8 +193,6 @@ keycloakx:
     - name: JAVA_OPTS_APPEND
       value: >-
         -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
-    - name: KC_PROXY
-      value: "passthrough"
     - name: KEYCLOAK_ADMIN
       valueFrom:
         secretKeyRef:
@@ -205,6 +203,10 @@ keycloakx:
         secretKeyRef:
           name: keycloak-master-admin-auth
           key: password
+
+  proxy:
+    enabled: true
+    mode: passthrough
 
   serviceAccount:
     create: false
