@@ -1,7 +1,7 @@
 Deploys Keycloak
 
 Uses the community-supported Keycloak helm chart, see
-https://github.com/codecentric/helm-charts/tree/keycloak-16.1.0/charts/keycloak
+https://github.com/codecentric/helm-charts/tree/keycloakx-2.1.0/charts/keycloakx
 
 Check the requirements.yaml/requirements.lock files for the current version.
 
