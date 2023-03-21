@@ -340,4 +340,3 @@ keycloakx:
       mountPath: /opt/keycloak/providers
     - name: themes
       mountPath: /opt/keycloak/themes
-
