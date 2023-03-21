@@ -190,6 +190,9 @@ keycloakx:
     - "--http-port=8080"
     - "--hostname-strict=false"
     - "--hostname-strict-https=false"
+    - "--spi-truststore-file-file=/certs/certs.jks"
+    - "--spi-truststore-file-password=password"
+    - "--spi-truststore-file-hostname-verification-policy=WILDCARD"
   extraEnv: |
     - name: JAVA_OPTS_APPEND
       value: >-
@@ -281,6 +284,28 @@ keycloakx:
         requests:
           cpu: 30m
           memory: 20Mi
+    - name: rsa-plugin
+      image: artifactory.algol60.net/csm-docker/stable/docker.io/library/alpine:3.15
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+      args:
+        - -c
+        - |
+          echo "Copying Provider..."
+          cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /providers/
+          cp /mnt/rsa-plugin/RSA-Plugin-Provider.jar /providers/
+          echo "Copying Theme..."
+          mkdir -p /themes/shasta-rsa/login/
+          cp /mnt/rsa-plugin/RSAAuthenticator.ftl /themes/shasta-rsa/login/
+          echo -e "parent=base\nimport=common/keycloak" > /themes/shasta-rsa/theme.properties
+      volumeMounts:
+        - name: providers
+          mountPath: /providers
+        - name: rsa-plugin-plugin-volume
+          mountPath: /mnt/rsa-plugin
+        - name: themes
+          mountPath: /themes
 
   http:
     relativePath: '/keycloak'
@@ -300,6 +325,10 @@ keycloakx:
     - name: rsa-plugin-plugin-volume
       configMap:
         name: cray-keycloak-rsa-plugin
+    - name: providers
+      emptyDir: {}
+    - name: themes
+      emptyDir: {}
   extraVolumeMounts: |
     - mountPath: /certs
       name: certs-volume
@@ -307,19 +336,8 @@ keycloakx:
     - name: rsa-plugin-plugin-volume
       mountPath: /mnt/rsa-plugin
       readOnly: true
-  startupScripts:
-    rsa_plugin_cli: "cp /mnt/rsa-plugin/RSA-CLI-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
-    rsa_plugin_plugin: "cp /mnt/rsa-plugin/RSA-Plugin-Provider.jar /opt/jboss/keycloak/standalone/deployments/"
-    rsa_plugin_theme: "cp /mnt/rsa-plugin/RSAAuthenticator.ftl /opt/jboss/keycloak/themes/base/login/"
-    # Configures Keycloak to read a CA cert from /certs/cert.jks, would contain the custom LDAP server certificate.
-    configureCerts.cli: |
-      embed-server --server-config=standalone-ha.xml --std-out=echo
-      batch
-      /subsystem=keycloak-server/spi=truststore:add()
-      /subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.file,value=/certs/certs.jks)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.password,value=password)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.hostname-verification-policy,value=WILDCARD)
-      /subsystem=keycloak-server/spi=truststore/provider=file:write-attribute(name=properties.disabled,value=false)
-      run-batch
-      stop-embedded-server
+    - name: providers
+      mountPath: /opt/keycloak/providers
+    - name: themes
+      mountPath: /opt/keycloak/themes
+
