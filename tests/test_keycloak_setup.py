@@ -190,6 +190,7 @@ class TestKeycloakSetup(testtools.TestCase):
             'ssoSessionMaxLifespan': 31536000,
             'accessTokenLifespan': 31536000,
             'accessTokenLifespanForImplicitFlow': 31536000,
+            'roles': {'realm': [{'name': 'tenant-admin'}]},
         }
         self.assertEqual(
             exp_req_body, json.loads(responses.calls[0].request.body))
