@@ -207,6 +207,13 @@ class KeycloakSetup(object):
             'ssoSessionMaxLifespan': 31536000,
             'accessTokenLifespan': 31536000,
             'accessTokenLifespanForImplicitFlow': 31536000,
+            'roles': {
+                'realm': [
+                    {
+                        'name': 'tenant-admin',
+                    },
+                ]
+            }
         }
         response = self.kc_master_admin_client.post(url, json=request_data)
         if response.status_code not in [200, 201, 409]:
@@ -1477,6 +1484,18 @@ def main():
                 'claim.name': 'gidNumber',
                 'id.token.claim': True,
                 'access.token.claim': False,
+                'userinfo.token.claim': True,
+            },
+        },
+        {
+            'name': 'keycloak-group-mapper',
+            'protocol': 'openid-connect',
+            'protocolMapper': 'oidc-group-membership-mapper',
+            'config': {
+                'full.path': False,
+                'id.token.claim': True,
+                'access.token.claim': True,
+                'claim.name': 'groups',
                 'userinfo.token.claim': True,
             },
         },
