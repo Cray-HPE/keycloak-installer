@@ -50,12 +50,15 @@ class TestKeycloakSetup(testtools.TestCase):
             keycloak_setup.KeycloakSetup, '_cleanup_clients')).mock
         css_mock = self.useFixture(fixtures.MockPatchObject(
             keycloak_setup.KeycloakSetup, '_cleanup_secrets')).mock
+        cfs_mock = self.useFixture(fixtures.MockPatchObject(
+            keycloak_setup.KeycloakSetup, '_check_features')).mock
 
         kcs = keycloak_setup.KeycloakSetup()
         kcs.run_post_clients()
 
         ccs_mock.assert_called_once_with()
         css_mock.assert_called_once_with()
+        cfs_mock.assert_called_once_with()
 
     def test_kc_master_admin_client(self):
         kcs = keycloak_setup.KeycloakSetup()

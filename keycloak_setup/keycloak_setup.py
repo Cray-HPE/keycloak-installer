@@ -111,6 +111,7 @@ class KeycloakSetup(object):
     def run_post_clients(self):
         self._cleanup_clients()
         self._cleanup_secrets()
+        self._check_features()
 
     def reset_keycloak_master_admin_session(self):
         LOGGER.info("Resetting Keycloak master admin session.")
@@ -283,6 +284,40 @@ class KeycloakSetup(object):
                 raise
             LOGGER.info(
                 "The %r secret in namespace %r already doesn't exit.", secret_name, namespace)
+
+    def _check_features(self):
+        LOGGER.info("Checking for tenant-admin realm role...")
+
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/roles'
+        realm_role = {"name": "tenant-admin"}
+
+        realm_role_response = self.kc_master_admin_client.post(url, json=realm_role)
+
+        if realm_role_response.status_code != 409:
+            LOGGER.info("tenant-admin realm role created.")
+        LOGGER.info("tenant-admin realm role exists.")
+
+        LOGGER.info("Checking for group mapper in %r client...", self.PUBLIC_CLIENT_ID)
+
+        client_url = f'{self.calc_client_url(self.PUBLIC_CLIENT_ID)}/protocol-mappers/models'
+        protocol_mapper = {
+            'name': 'keycloak-group-mapper',
+            'protocol': 'openid-connect',
+            'protocolMapper': 'oidc-group-membership-mapper',
+            'config': {
+                'full.path': False,
+                'id.token.claim': True,
+                'access.token.claim': True,
+                'claim.name': 'groups',
+                'userinfo.token.claim': True,
+            },
+        }
+
+        client_pm_response = self.kc_master_admin_client.post(client_url, json=protocol_mapper)
+
+        if client_pm_response.status_code != 409:
+            LOGGER.info("%r group mapper created.", self.PUBLIC_CLIENT_ID)
+        LOGGER.info("%r group mapper exists.", self.PUBLIC_CLIENT_ID)
 
 
 class KeycloakClient(object):
