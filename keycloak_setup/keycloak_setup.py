@@ -220,6 +220,43 @@ class KeycloakSetup(object):
         if response.status_code not in [200, 201, 409]:
             response.raise_for_status()
 
+    def create_client_scopes(self):
+        LOGGER.info('Create openid client scope in: %s', self.SHASTA_REALM_NAME)
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/client-scopes'
+        request_data = {
+            "name": "openid",
+            "description": "OpenID Connect scope for add OpenID scope to all access tokens",
+            "attributes": {
+                "consent.screen.text": "",
+                "display.on.consent.screen": "true",
+                "include.in.token.scope": "true",
+                "gui.order": ""
+            },
+            "protocol": "openid-connect"
+        }
+        response = self.kc_master_admin_client.post(url, json=request_data)
+        if response.status_code not in [200, 201, 409]:
+            response.raise_for_status()
+
+        LOGGER.info('Set the openid client scope to default')
+        scope_id = self.calc_client_scope_id('openid')
+        default_client_scope_url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/default-default-client-scopes/{scope_id}'
+        default_scopes = self.kc_master_admin_client.put(default_client_scope_url)
+        if default_scopes.status_code not in [200, 201, 409]:
+            default_scopes.raise_for_status()
+
+    def calc_client_scope_id(self, client_scope):
+        LOGGER.info("Fetching %r client scope id from keycloak...", client_scope)
+        url = f'{self.keycloak_base}/admin/realms/{self.SHASTA_REALM_NAME}/client-scopes'
+        scopes = self.kc_master_admin_client.get(url)
+        if scopes.status_code not in [200, 201]:
+            scopes.raise_for_status()
+        client_scopes = scopes.json()
+        for scope in client_scopes:
+            if scope['name'] == client_scope:
+                scope_id = scope['id']
+        return scope_id
+
     def calc_client_url(self, client_id):
         LOGGER.info("Fetching %r client URL from keycloak...", client_id)
 
@@ -318,6 +355,17 @@ class KeycloakSetup(object):
         if client_pm_response.status_code != 409:
             LOGGER.info("%r group mapper created.", self.PUBLIC_CLIENT_ID)
         LOGGER.info("%r group mapper exists.", self.PUBLIC_CLIENT_ID)
+
+        LOGGER.info("Checking public clients have the proper client scopes")
+
+        pub_client_url = f'{self.calc_client_url(self.PUBLIC_CLIENT_ID)}/default-client-scopes/{self.calc_client_scope_id("openid")}'
+        deprecated_pub_client_url = f'{self.calc_client_url(self.DEPRECATED_PUBLIC_CLIENT_ID)}/default-client-scopes/{self.calc_client_scope_id("openid")}'
+        pub_client_scope = self.kc_master_admin_client.put(pub_client_url)
+        if pub_client_scope.status_code not in [200, 201, 409]:
+            pub_client_scope.raise_for_status()
+        deprecated_pub_client = self.kc_master_admin_client.put(deprecated_pub_client_url)
+        if deprecated_pub_client.status_code not in [200, 201, 409]:
+            deprecated_pub_client.raise_for_status()
 
 
 class KeycloakClient(object):
@@ -653,7 +701,7 @@ class KeycloakClient(object):
             'directAccessGrantsEnabled': self.direct_access_grants_enabled,
             'serviceAccountsEnabled': self.service_accounts_enabled,
             'publicClient': self.public_client,
-            'authorizationServicesEnabled': self.authorization_services_enabled
+            'authorizationServicesEnabled': self.authorization_services_enabled,
         }
 
         # Verify the extended attributes don't contain
@@ -1590,6 +1638,7 @@ def main():
     while True:
         try:
             kas.run()
+            kas.create_client_scopes()
             for client in clients:
                 client.create()
                 if not client.public_client:
