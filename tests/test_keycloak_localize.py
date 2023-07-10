@@ -739,6 +739,7 @@ class TestKeycloakLocalize(testtools.TestCase):
             'fullSyncPeriod': ['-1'],
             'changedSyncPeriod': ['-1'],
             'debug': ['true'],
+            'enabled': ['true'],
         }
         cc_mock.assert_called_once_with(
             name='shasta-user-federation-ldap',
@@ -781,6 +782,7 @@ class TestKeycloakLocalize(testtools.TestCase):
             'fullSyncPeriod': ['-1'],
             'changedSyncPeriod': ['-1'],
             'debug': ['true'],
+            'enabled': ['true'],
             'bindDn': [str(mock.sentinel.bind_dn), ],
             'bindCredential': [str(mock.sentinel.bind_pw), ]
         }
