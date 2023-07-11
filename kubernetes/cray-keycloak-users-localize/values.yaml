@@ -73,6 +73,7 @@ ldapBatchSizeForSync: "4000"
 ldapFullSyncPeriod: "-1"
 ldapChangedSyncPeriod: "-1"
 ldapDebug: "true"
+ldapEnabled: "true"
 
 ldapUserAttributeMappers:
   - "uidNumber"

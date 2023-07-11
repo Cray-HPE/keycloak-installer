@@ -65,6 +65,7 @@ DEFAULT_LDAP_BATCH_SIZE_FOR_SYNC = '4000'
 DEFAULT_LDAP_FULL_SYNC_PERIOD = '-1'
 DEFAULT_LDAP_CHANGED_SYNC_PERIOD = '-1'
 DEFAULT_LDAP_DEBUG = 'true'
+DEFAULT_LDAP_ENABLED = 'true'
 DEFAULT_LDAP_USER_ATTRIBUTE_MAPPERS = (
     ['uidNumber', 'gidNumber', 'loginShell', 'homeDirectory'])
 DEFAULT_LDAP_USER_ATTRIBUTE_MAPPERS_TO_REMOVE = []
@@ -149,6 +150,7 @@ class KeycloakLocalize(object):
             ldap_full_sync_period=DEFAULT_LDAP_FULL_SYNC_PERIOD,
             ldap_changed_sync_period=DEFAULT_LDAP_CHANGED_SYNC_PERIOD,
             ldap_debug=DEFAULT_LDAP_DEBUG,
+            ldap_enabled=DEFAULT_LDAP_ENABLED,
             ldap_user_attribute_mappers=DEFAULT_LDAP_USER_ATTRIBUTE_MAPPERS,
             ldap_user_attribute_mappers_to_remove=DEFAULT_LDAP_USER_ATTRIBUTE_MAPPERS_TO_REMOVE,
             ldap_group_name_ldap_attr=DEFAULT_LDAP_GROUP_NAME_LDAP_ATTR,
@@ -218,6 +220,7 @@ class KeycloakLocalize(object):
         self.ldap_full_sync_period = ldap_full_sync_period
         self.ldap_changed_sync_period = ldap_changed_sync_period
         self.ldap_debug = ldap_debug
+        self.ldap_enabled = ldap_enabled
         self.ldap_user_attribute_mappers = ldap_user_attribute_mappers
         self.ldap_user_attribute_mappers_to_remove = ldap_user_attribute_mappers_to_remove
         self.ldap_group_name_ldap_attr = ldap_group_name_ldap_attr
@@ -606,6 +609,7 @@ class KeycloakLocalize(object):
             'fullSyncPeriod': [self.ldap_full_sync_period, ],
             'changedSyncPeriod': [self.ldap_changed_sync_period, ],
             'debug': [self.ldap_debug, ],
+            'enabled': [self.ldap_enabled, ],
         }
         if self.ldap_bind_dn and self.ldap_bind_credentials:
             config['bindDn'] = [self.ldap_bind_dn, ]
@@ -1060,6 +1064,7 @@ def main():
     ldap_changed_sync_period = os.environ.get(
         'LDAP_CHANGED_SYNC_PERIOD', DEFAULT_LDAP_CHANGED_SYNC_PERIOD)
     ldap_debug = os.environ.get('LDAP_DEBUG', DEFAULT_LDAP_DEBUG)
+    ldap_enabled = os.environ.get('LDAP_ENABLED', DEFAULT_LDAP_ENABLED)
     ldap_user_attribute_mappers_str = os.environ.get('LDAP_USER_ATTRIBUTE_MAPPERS')
     if ldap_user_attribute_mappers_str:
         ldap_user_attribute_mappers = json.loads(ldap_user_attribute_mappers_str)
@@ -1223,6 +1228,7 @@ def main():
         ldap_role_mapper_use_realm_roles_mapping=ldap_role_mapper_use_realm_roles_mapping,
         ldap_role_mapper_client_id=ldap_role_mapper_client_id,
         ldap_do_full_sync=ldap_do_full_sync,
+        ldap_enabled=ldap_enabled,
         local_users=local_users,
         local_groups=local_groups,
         user_export_storage_access_key=user_export_storage_secrets['access_key'],

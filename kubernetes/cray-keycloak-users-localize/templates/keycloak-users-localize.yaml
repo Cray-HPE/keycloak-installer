@@ -59,6 +59,7 @@ metadata:
   labels:
     {{- include "cray-keycloak-users-localize.labels" . | nindent 4 }}
 spec:
+  ttlSecondsAfterFinished: 0
   backoffLimit: {{ .Values.backoffLimit }}
   template:
     spec:
@@ -136,6 +137,8 @@ spec:
           value: {{ .Values.ldapChangedSyncPeriod | quote }}
         - name: LDAP_DEBUG
           value: {{ .Values.ldapDebug | quote }}
+        - name: LDAP_ENABLED
+          value: {{ .Values.ldapEnabled | quote }}
         - name: LDAP_USER_ATTRIBUTE_MAPPERS
           value: {{ .Values.ldapUserAttributeMappers | toJson | quote }}
         - name: LDAP_USER_ATTRIBUTE_MAPPERS_TO_REMOVE
