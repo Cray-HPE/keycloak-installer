@@ -59,7 +59,7 @@ metadata:
   labels:
     {{- include "cray-keycloak-users-localize.labels" . | nindent 4 }}
 spec:
-  ttlSecondsAfterFinished: 0
+  ttlSecondsAfterFinished: 2147483647
   backoffLimit: {{ .Values.backoffLimit }}
   template:
     spec:
