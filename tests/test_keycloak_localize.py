@@ -1599,9 +1599,36 @@ class TestKeycloakLocalize(testtools.TestCase):
             'subGroups': [],
         }
 
+        sample_group_4 = {
+            'id': '19279262-0f24-416e-9189-3dfb7a952b2f',
+            'name': str(mock.sentinel.g2_name),
+            'path': '/{}'.format(str(mock.sentinel.g2_name)),
+            'attributes': {
+                'cn': [
+                    str(mock.sentinel.g2_cn),
+                ],
+                # Some entries didn't have gidNumber if they are local groups.
+            },
+            'realmRoles': [],
+            'clientRoles': {},
+            'subGroups': [],
+        }
+
+        sample_group_5 = {
+            'id': '19279262-0f24-416e-9189-3dfb7a952b2f',
+            'name': str(mock.sentinel.g2_name),
+            'path': '/{}'.format(str(mock.sentinel.g2_name)),
+            'attributes': {
+                # Some entries are local groups with no attributes.
+            },
+            'realmRoles': [],
+            'clientRoles': {},
+            'subGroups': [],
+        }
+
         responses.add(
             responses.GET, url, status=200,
-            json=[sample_group_1, sample_group_2, sample_group_3, ])
+            json=[sample_group_1, sample_group_2, sample_group_3, sample_group_4, sample_group_5])
 
         kl = keycloak_localize.KeycloakLocalize(
             user_export_groups=True,
@@ -1619,6 +1646,8 @@ class TestKeycloakLocalize(testtools.TestCase):
                 mock.sentinel.g2_cn, mock.sentinel.g2_id,
                 ','.join([str(mock.sentinel.g2_u1), str(mock.sentinel.g2_u2)])),
             '{}::{}:'.format(mock.sentinel.g2_cn, mock.sentinel.g2_id,),
+            '{}::{}:'.format(mock.sentinel.g2_name, 100000811,),
+            '{}::{}:'.format(mock.sentinel.g2_name, 100000811,),
         ])
 
         s3c_mock.return_value.upload_fileobj.assert_called_once_with(
