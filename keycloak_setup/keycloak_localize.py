@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# (C) Copyright 2019-2022 Hewlett Packard Enterprise Development LP
+# (C) Copyright 2019-2023 Hewlett Packard Enterprise Development LP
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -902,8 +902,12 @@ class KeycloakLocalize(object):
                 members = ','.join(attrs['memberUid'])
             else:
                 members = ''
-            groups_fmt.append(
-                '{}::{}:{}'.format(attrs['cn'][0], attrs['gidNumber'][0], members))
+            if 'cn' in attrs and 'gidNumber' in attrs:
+                groups_fmt.append(
+                    '{}::{}:{}'.format(attrs['cn'][0], attrs['gidNumber'][0], members))
+            else:
+                groups_fmt.append(
+                    '{}::{}:{}'.format(group['name'], 100000811, members))
         groups_str = '\n'.join(groups_fmt)
 
         LOGGER.info("Groups:\n%s", groups_str)
