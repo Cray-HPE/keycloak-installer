@@ -21,13 +21,18 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-FROM artifactory.algol60.net/docker.io/alpine:3 as testing_base
+ARG ALPINE_BASE_IMAGE=artifactory.algol60.net/csm-docker/stable/docker.io/library/alpine:3.18
+
+FROM $ALPINE_BASE_IMAGE as testing_base
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+RUN apk add --no-cache python3 && \
+    ln -sf python3 /usr/bin/python && \
+    apk add --update --no-cache openssl
+
 RUN python3 -m ensurepip
-RUN pip3 install --no-cache --upgrade pip setuptools==57.1.0
+RUN pip3 install --no-cache --upgrade pip setuptools==65.5.1
 
 COPY requirements.txt requirements_test.txt constraints.txt ./
 
@@ -47,13 +52,16 @@ FROM testing_base as codestyle
 CMD [ "./docker_codestyle_entry.sh" ]
 
 
-FROM artifactory.algol60.net/docker.io/alpine:3
+FROM $ALPINE_BASE_IMAGE
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+RUN apk add --no-cache python3 && \
+    ln -sf python3 /usr/bin/python && \
+    apk add --update --no-cache openssl
+
 RUN python3 -m ensurepip
-RUN pip3 install --no-cache --upgrade pip setuptools==57.1.0
+RUN pip3 install --no-cache --upgrade pip setuptools==65.5.1
 
 COPY requirements.txt constraints.txt ./
 
