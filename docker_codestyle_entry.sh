@@ -35,4 +35,4 @@ if [[ -z "$QUIET" ]]; then
   pip3 freeze 2>&1 | tee /results/pip_freeze.out
 fi
 
-flake8 --ignore E501 2>&1 | tee /results/flake8.out
+python -m flake8 --ignore E501 2>&1 | tee /results/flake8.out
