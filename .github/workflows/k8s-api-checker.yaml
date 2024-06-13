@@ -1,0 +1,25 @@
+name: Run Api Checker
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+jobs:
+  k8s-api-checker:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check for removed and deprecated api usage
+        uses: Cray-HPE/.github/actions/csm-k8s-api-checker@v0-csm-k8s-api-checker
+        with:
+          prerequisite: |
+            helm dependency build kubernetes/cray-keycloak
+            helm template --generate-name --dry-run --set postgresDbBackup.enabled=true --set postgresDbBackup.serviceAccount.create=true kubernetes/cray-keycloak > cray-keycloak.yaml
+            helm template --generate-name --dry-run kubernetes/cray-keycloak-users-localize > cray-keycloak-users-localize.yaml
+            sed -i.orig -e 's/release-name-//g' cray-keycloak-users-localize.yaml cray-keycloak.yaml
+            rm *.orig
