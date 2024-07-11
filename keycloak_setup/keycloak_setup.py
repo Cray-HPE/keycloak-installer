@@ -62,6 +62,10 @@ DEFAULT_SYSTEM_NEXUS_CLIENT_ID = 'system-nexus-client'
 DEFAULT_SYSTEM_NEXUS_CLIENT_SECRET_NAME = 'system-nexus-client-auth'
 DEFAULT_SYSTEM_NEXUS_CLIENT_SECRET_NAMESPACES = json.dumps(['default'])
 
+DEFAULT_SYSTEM_SLINGSHOT_CLIENT_ID = 'system-slingshot-client'
+DEFAULT_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAME = 'system-slingshot-client-auth'
+DEFAULT_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
+
 DEFAULT_GATEKEEPER_CLIENT_ID = 'gatekeeper'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAME = 'keycloak-gatekeeper-client'
 DEFAULT_GATEKEEPER_CLIENT_SECRET_NAMESPACES = json.dumps(['services'])
@@ -1448,6 +1452,52 @@ def main():
 
     # Create new client role(s).
     system_nexus_client.client_roles = ['nx-admin', 'nx-anonymous']
+
+    # ---- System Slingshot Client ----
+    # This client is used by the Slingshot Fabric Manager Northbound API consumer which enables
+    # Slingshot Fabric Manager to authenticate wth Keycloak realm users.
+
+    system_slingshot_client = \
+        KeycloakClient(
+            kas,
+            kas.SHASTA_REALM_NAME,
+            os.environ.get('KEYCLOAK_SYSTEM_SLINGSHOT_CLIENT_ID',
+                           DEFAULT_SYSTEM_SLINGSHOT_CLIENT_ID),
+            os.environ.get('KEYCLOAK_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAME',
+                           DEFAULT_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAME),
+            json.loads(
+                os.environ.get('KEYCLOAK_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAMESPACES',
+                               DEFAULT_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAMESPACES))
+        )
+
+    clients.append(system_slingshot_client)
+
+    # Set core client attributes
+    system_slingshot_client.service_accounts_enabled = True
+
+    # add protocol mappers
+    system_slingshot_client_pm = [
+        {
+            'name': 'system-slingshot-role',
+            'protocol': 'openid-connect',
+            'protocolMapper': 'oidc-hardcoded-role-mapper',
+            'consentRequired': False,
+            'config': {
+                'role': 'shasta.system-slingshot',
+            },
+        },
+    ]
+
+    system_slingshot_client.set_req_attr('protocolMappers', system_slingshot_client_pm)
+
+    # add endpoint to secret
+    system_slingshot_client.set_k8s_secret_attr(
+        'endpoint',
+        f'{cluster_keycloak_base}/realms/{kas.SHASTA_REALM_NAME}/protocol/openid-connect/token'
+    )
+
+    # Create new client role(s).
+    system_slingshot_client.client_roles = ['slingshot-admin', 'slingshot-guest', 'slingshot-operator', 'slingshot-security']
 
     # ---- WLM Client ----
 

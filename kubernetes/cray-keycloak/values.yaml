@@ -84,6 +84,12 @@ setup:
           - services
           - default
           - nexus
+    systemSlingshotClient:
+      id: system-slingshot-client
+      secret:
+        name: system-slingshot-client-auth
+        namespaces:
+          - services
     wlmClient:
       id: wlm-client
       secret:
