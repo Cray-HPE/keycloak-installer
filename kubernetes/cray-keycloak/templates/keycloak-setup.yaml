@@ -129,6 +129,15 @@ spec:
         - name: KEYCLOAK_GATEKEEPER_CLIENT_SECRET_NAMESPACES
           value: |
             {{ .Values.setup.keycloak.gatekeeper.client.secret.namespaces | toJson }}
+        # System Slingshot client, used to obtain a service account token
+        # by the Slingshot Fabric Manager Northbound API consumers
+        - name: KEYCLOAK_SYSTEM_CLIENT_CLIENT_ID
+          value: "{{ .Values.setup.keycloak.systemSlingshotClient.id }}"
+        - name: KEYCLOAK_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAME
+          value: "{{ .Values.setup.keycloak.systemSlingshotClient.secret.name }}"
+        - name: KEYCLOAK_SYSTEM_SLINGSHOT_CLIENT_SECRET_NAMESPACES
+          value: |
+            {{ .Values.setup.keycloak.systemSlingshotClient.secret.namespaces | toJson }}
 
         # WLM client
         - name: KEYCLOAK_WLM_CLIENT_ID
