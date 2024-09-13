@@ -23,7 +23,7 @@
 #
 apiVersion: v2
 name: cray-keycloak
-version: 5.1.1
+version: 5.1.2
 description: Deploys Keycloak for Shasta
 keywords:
 - keycloak

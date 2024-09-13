@@ -25,7 +25,7 @@
 kubectl:
   image:
     repository: artifactory.algol60.net/csm-docker/stable/docker-kubectl
-    tag: 1.19.15
+    tag: 1.24.17
 
 sqlCluster:
   image:
@@ -164,7 +164,7 @@ keycloakx:
   kubectl:
     image:
       repository: artifactory.algol60.net/csm-docker/stable/docker-kubectl
-      tag: 1.19.15
+      tag: 1.24.17
       pullPolicy: IfNotPresent
 
   # A list of gateways that keycloak is exposed
