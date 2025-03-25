@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# (C) Copyright 2020-2023 Hewlett Packard Enterprise Development LP
+# (C) Copyright 2020-2025 Hewlett Packard Enterprise Development LP
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -732,6 +732,15 @@ class KeycloakClient(object):
         self._url = self.kas.calc_client_url(self.id)
         if not self._url:
             raise Exception(f"Failed to fetch URL for client {self.id}!")
+
+        if response.status_code == 409 and self._url:
+            LOGGER.info('Updating client %s to new configuration', self.id)
+            update = self.kas.kc_master_admin_client.put(
+                self._url, json=config)
+            if update.status_code == 204:
+                LOGGER.info('Updated client %s', self.id)
+            else:
+                response.raise_for_status()
 
         # Create any required service account roles
         self.add_service_account_roles()

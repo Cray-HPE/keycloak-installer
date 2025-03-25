@@ -994,9 +994,13 @@ class TestKeycloakSetup(testtools.TestCase):
             responses.GET, kc_clients_uuid_url, status=200, json=[{'id': "12345"}],
             headers={'location': str(mock.sentinel.location)})
 
+        kc_client_url = kc_clients_url + "/12345"
+        responses.add(
+            responses.PUT, kc_client_url, status=204)
+
         client.create()
 
-        self.assertEqual(2, len(responses.calls))
+        self.assertEqual(3, len(responses.calls))
         self.assertEqual(kc_clients_url, responses.calls[0].request.url)
         self.assertEqual(kc_clients_uuid_url, responses.calls[1].request.url)
 
