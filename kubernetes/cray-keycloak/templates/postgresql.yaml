@@ -1,7 +1,7 @@
 {{/*
 MIT License
 
-(C) Copyright 2022 Hewlett Packard Enterprise Development LP
+(C) Copyright 2022-2025 Hewlett Packard Enterprise Development LP
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -41,7 +41,7 @@ spec:
   privateKey:
     algorithm: RSA
     encoding: PKCS1
-    size: 2048 
+    size: 2048
   usages:
     - server auth
     - client auth
@@ -72,7 +72,7 @@ spec:
   enableLogicalBackup: true
   logicalBackupSchedule: "{{ .Values.sqlCluster.logicalBackup.schedule }}"
   postgresql:
-    version: "14" # Needs to match version of spilo as defined in the cray-postgres-operator chart
+    version: "15" # Needs to match version of spilo as defined in the cray-postgres-operator chart
   tls:
     secretName: "keycloak-postgres-tls"
 
