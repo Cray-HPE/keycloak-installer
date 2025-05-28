@@ -25,12 +25,12 @@
 kubectl:
   image:
     repository: artifactory.algol60.net/csm-docker/stable/docker-kubectl
-    tag: 1.24.17
+    tag: 1.32.2
 
 sqlCluster:
   image:
     repository: artifactory.algol60.net/csm-docker/stable/docker.io/library/postgres
-    tag: 13.2-alpine
+    tag: 15-alpine
     pullPolicy: IfNotPresent
 
   # The logical backup configurations are set in the operatorconfiguration and cannot be overridden per cluster;
@@ -45,7 +45,7 @@ sealedSecrets: []
 setup:
   image:
     repository: artifactory.algol60.net/csm-docker/stable/cray-keycloak-setup
-    # tag defaults to chart appVersion which is set by jenkins during build based on .version file
+    tag: 3.9.0
     pullPolicy: Always
   keycloak:
     service: keycloak
@@ -164,7 +164,7 @@ keycloakx:
   kubectl:
     image:
       repository: artifactory.algol60.net/csm-docker/stable/docker-kubectl
-      tag: 1.24.17
+      tag: 1.32.2
       pullPolicy: IfNotPresent
 
   # A list of gateways that keycloak is exposed
