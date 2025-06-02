@@ -2,7 +2,7 @@
  *
  *  MIT License
  *
- *  (C) Copyright 2022 Hewlett Packard Enterprise Development LP
+ *  (C) Copyright 2022-2025 Hewlett Packard Enterprise Development LP
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a
  *  copy of this software and associated documentation files (the "Software"),
@@ -42,10 +42,6 @@ pipeline {
         IS_STABLE = getBuildIsStable()
         IMAGE_VERSION = getDockerBuildVersion(isStable: env.IS_STABLE)
         DOCKER_ARGS = getDockerBuildArgs(name: env.NAME, description: env.DESCRIPTION)
-        CHART_NAME_1 = "cray-keycloak"
-        CHART_NAME_2 = "cray-keycloak-users-localize"
-        CHART_VERSION_1 = getChartVersion(name: env.CHART_NAME_1, isStable: env.IS_STABLE)
-        CHART_VERSION_2 = getChartVersion(name: env.CHART_NAME_2, isStable: env.IS_STABLE)
     }
 
     stages {
@@ -54,12 +50,6 @@ pipeline {
                 stage("Image") {
                     steps {
                         sh "make image"
-                    }
-                }
-
-                stage("Charts") {
-                    steps {
-                        sh "make charts"
                     }
                 }
             }
@@ -75,16 +65,8 @@ pipeline {
             steps {
                 script {
                     publishCsmDockerImage(image: env.IMAGE_NAME, tag: env.IMAGE_VERSION, isStable: env.IS_STABLE)
-                    publishCsmHelmCharts(component: env.NAME, chartsPath: "${WORKSPACE}/kubernetes/.packaged", isStable: env.IS_STABLE)
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            archiveArtifacts artifacts: 'results/**/*', fingerprint: true
-            junit 'results/**/*.xml'
         }
     }
 }

@@ -1,7 +1,7 @@
 #
 # MIT License
 #
-# (C) Copyright 2019-2022 Hewlett Packard Enterprise Development LP
+# (C) Copyright 2019-2025 Hewlett Packard Enterprise Development LP
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -46,15 +46,6 @@ IMAGE_NAME ?= cray-keycloak-setup
 IMAGE_VERSION ?= $(shell cat .version)
 DOCKER_IMAGE ?= ${IMAGE_NAME}:${IMAGE_VERSION}
 
-# HELM CHARTS
-CHART_PATH ?= kubernetes
-CHART_VERSION_1 ?= local
-CHART_VERSION_2 ?= local
-CHART_NAME_1 ?= "cray-keycloak"
-CHART_NAME_1 ?= "cray-keycloak-users-localize"
-
-
-charts: chart1 chart2
 
 image:
 	docker build --pull ${DOCKER_ARGS} --tag '${DOCKER_IMAGE}' .
@@ -65,13 +56,3 @@ test:
 	docker run --rm '${DOCKER_IMAGE}-codestyle'
 	docker build --pull ${DOCKER_ARGS} --tag '${DOCKER_IMAGE}-test' --target testing .
 	docker run --rm --mount type=bind,source=$(PWD)/results,destination=/results '${DOCKER_IMAGE}-test'
-
-chart1:
-	echo "appVersion: ${IMAGE_VERSION}" >> ${CHART_PATH}/${CHART_NAME_1}/Chart.yaml
-	helm dep up ${CHART_PATH}/${CHART_NAME_1}
-	helm package ${CHART_PATH}/${CHART_NAME_1} -d ${CHART_PATH}/.packaged --version ${CHART_VERSION_1}
-
-chart2:
-	echo "appVersion: ${IMAGE_VERSION}" >> ${CHART_PATH}/${CHART_NAME_2}/Chart.yaml
-	helm dep up ${CHART_PATH}/${CHART_NAME_2}
-	helm package ${CHART_PATH}/${CHART_NAME_2} -d ${CHART_PATH}/.packaged --version ${CHART_VERSION_2}
